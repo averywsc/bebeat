@@ -1,0 +1,87 @@
+{
+  "sampleRate": 48000,
+  "bitDepth": 24,
+  "kits": {
+    "808_clean": {
+      "label": "808 Clean Studio",
+      "files": {
+        "bd": "808_clean/bd.wav",
+        "sn": "808_clean/sn.wav",
+        "cp": "808_clean/cp.wav",
+        "hh": "808_clean/hh.wav",
+        "oh": "808_clean/oh.wav",
+        "rim": "808_clean/rim.wav",
+        "lt": "808_clean/lt.wav",
+        "perc": "808_clean/perc.wav"
+      }
+    },
+    "909_punch": {
+      "label": "909 Club Punch",
+      "files": {
+        "bd": "909_punch/bd.wav",
+        "sn": "909_punch/sn.wav",
+        "cp": "909_punch/cp.wav",
+        "hh": "909_punch/hh.wav",
+        "oh": "909_punch/oh.wav",
+        "rim": "909_punch/rim.wav",
+        "lt": "909_punch/lt.wav",
+        "perc": "909_punch/perc.wav"
+      }
+    },
+    "ukg_break": {
+      "label": "UKG Tight Break",
+      "files": {
+        "bd": "ukg_break/bd.wav",
+        "sn": "ukg_break/sn.wav",
+        "cp": "ukg_break/cp.wav",
+        "hh": "ukg_break/hh.wav",
+        "oh": "ukg_break/oh.wav",
+        "rim": "ukg_break/rim.wav",
+        "lt": "ukg_break/lt.wav",
+        "perc": "ukg_break/perc.wav"
+      }
+    },
+    "fm_perc": {
+      "label": "FM Metallic Modular",
+      "files": {
+        "bd": "fm_perc/bd.wav",
+        "sn": "fm_perc/sn.wav",
+        "cp": "fm_perc/cp.wav",
+        "hh": "fm_perc/hh.wav",
+        "oh": "fm_perc/oh.wav",
+        "rim": "fm_perc/rim.wav",
+        "lt": "fm_perc/lt.wav",
+        "perc": "fm_perc/perc.wav"
+      }
+    }
+  },
+  "wavetables": {
+    "acid_morph": {
+      "file": "wavetables/acid_morph.wav",
+      "frames": 32,
+      "frameLength": 512
+    },
+    "glass_fm": {
+      "file": "wavetables/glass_fm.wav",
+      "frames": 32,
+      "frameLength": 512
+    },
+    "warm_organ": {
+      "file": "wavetables/warm_organ.wav",
+      "frames": 32,
+      "frameLength": 512
+    },
+    "formant_sweep": {
+      "file": "wavetables/formant_sweep.wav",
+      "frames": 32,
+      "frameLength": 512
+    }
+  },
+  "soundfonts": [
+    {
+      "id": "bebeat_starter",
+      "label": "Bebeat Starter SF2",
+      "file": "soundfonts/bebeat_starter.sf2"
+    }
+  ]
+}

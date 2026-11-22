@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bebeat</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23080C18' stroke='%2324324D' stroke-width='3'/%3E%3Cpath d='M18 14h18c8 0 13 4 13 10 0 4-2 7-6 8 5 1 8 5 8 10 0 7-6 12-14 12H18V14zm9 15h8c3 0 5-1.5 5-4s-2-4-5-4h-8v8zm0 18h9c3.5 0 6-1.8 6-4.8S39.5 37 36 37h-9v10z' fill='%23FFFFFF'/%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #080c18;
+        --panel: #0e1528;
+        --panel-hover: #15203b;
+        --border: #24324d;
+        --border-strong: #2e3f61;
+        --ink: #f4f7ff;
+        --mute: #8d9cc4;
+        --dim: #5e7099;
+        --acc: #ffffff;
+        --acc-ink: #080c18;
+        --font-ui: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-ui);
+        font-size: 15px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .wrap {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 56px 24px 80px;
+      }
+
+      header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 56px;
+      }
+
+      .wordmark {
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: var(--acc);
+      }
+
+      nav {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-size: 13px;
+        color: var(--mute);
+      }
+
+      nav a:hover {
+        color: var(--acc);
+      }
+
+      h1 {
+        margin: 0 0 18px;
+        font-size: clamp(32px, 5vw, 44px);
+        font-weight: 700;
+        letter-spacing: -0.035em;
+        line-height: 1.1;
+        color: var(--acc);
+      }
+
+      .lead {
+        margin: 0 0 36px;
+        font-size: 16px;
+        color: var(--mute);
+        max-width: 62ch;
+      }
+
+      .downloads {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      @media (max-width: 600px) {
+        .downloads {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .dl-block {
+        min-width: 0;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .dl-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .dl-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--acc);
+      }
+
+      .dl-size {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--mute);
+      }
+
+      .dl-desc {
+        margin: 0;
+        font-size: 13px;
+        color: var(--mute);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-ui);
+        font-size: 13px;
+        font-weight: 600;
+        padding: 11px 16px;
+        border-radius: 4px;
+        background: rgba(15, 23, 42, 0.72);
+        color: var(--ink);
+        border: 1px solid var(--border-strong);
+        cursor: pointer;
+        transition: background-color 0.14s ease, border-color 0.14s ease;
+      }
+
+      .btn:hover {
+        background: var(--panel-hover);
+        border-color: var(--acc);
+      }
+
+      .btn.primary {
+        background: var(--acc);
+        border-color: var(--acc);
+        color: var(--acc-ink);
+      }
+
+      .btn.primary:hover {
+        background: #e5ebf8;
+        border-color: #e5ebf8;
+      }
+
+      .hash-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--dim);
+      }
+
+      .hash-val {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .copy-btn {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--mute);
+        background: transparent;
+        border: 1px solid var(--border);
+        padding: 2px 7px;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+
+      .copy-btn:hover {
+        color: var(--acc);
+        border-color: var(--border-strong);
+        background: var(--panel-hover);
+      }
+
+      .meta {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--dim);
+        margin: 0 0 44px;
+      }
+
+      .details {
+        display: grid;
+        gap: 24px;
+        border-top: 1px solid var(--border);
+        padding-top: 28px;
+      }
+
+      .details h2 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--acc);
+      }
+
+      .details p {
+        margin: 0;
+        font-size: 14px;
+        color: var(--mute);
+      }
+
+      .feature-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 9px;
+        font-size: 14px;
+        color: var(--mute);
+      }
+
+      .feature-list strong {
+        color: var(--ink);
+        font-weight: 500;
+      }
+
+      footer {
+        margin-top: 56px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--dim);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <a class="wordmark" href="./">Bebeat</a>
+        <nav>
+          <a id="web-preview-link" href="/" style="display: none">Web preview</a>
+          <a href="https://github.com/averywsc/bebeat/releases" target="_blank" rel="noreferrer">Releases</a>
+          <a href="https://github.com/averywsc/bebeat" target="_blank" rel="noreferrer">Source</a>
+        </nav>
+      </header>
+
+      <main>
+        <h1>Download Bebeat</h1>
+        <p class="lead">
+          A low-latency desktop music production studio and live coding DAW for pattern sequencing, multi-engine synthesis, and beat-reactive modulation, with an FL-style channel rack, scale-snapped piano roll, magnetic arrangement playlist, stackable mixer effects, real-time JavaScript and Python live coding with inline previews, bundled 24-bit kits and SoundFonts, plus live LUFS metering and lossless stem export.
+        </p>
+
+        <section class="downloads">
+          <div class="dl-block">
+            <div class="dl-head">
+              <span class="dl-title">Windows Installer</span>
+              <span class="dl-size" id="setup-size">115.4 MB</span>
+            </div>
+            <p class="dl-desc">Standard Windows setup with Start Menu and desktop shortcuts.</p>
+            <a
+              class="btn primary"
+              id="installer-btn"
+              href="https://github.com/averywsc/bebeat/releases/latest/download/Bebeat-Setup-1.0.0.exe"
+              download
+            >
+              Download Bebeat-Setup-1.0.0.exe
+            </a>
+            <div class="hash-row">
+              <span class="hash-val" id="setup-hash">SHA-256 C719394837F590B63770F3D3288EEEC5C60EEEB52975E1753108F4156EBEB64B</span>
+              <button type="button" class="copy-btn" data-copy="setup-hash">Copy</button>
+            </div>
+          </div>
+
+          <div class="dl-block">
+            <div class="dl-head">
+              <span class="dl-title">Portable</span>
+              <span class="dl-size" id="portable-size">105.6 MB</span>
+            </div>
+            <p class="dl-desc">Single standalone executable. Run from any folder without installing.</p>
+            <a
+              class="btn"
+              id="portable-btn"
+              href="https://github.com/averywsc/bebeat/releases/latest/download/Bebeat-1.0.0-Portable.exe"
+              download
+            >
+              Download Bebeat-1.0.0-Portable.exe
+            </a>
+            <div class="hash-row">
+              <span class="hash-val" id="portable-hash">SHA-256 556043B12D60DA376E661649586B5517AB660F8071D55E806DEF5CB717E843E8</span>
+              <button type="button" class="copy-btn" data-copy="portable-hash">Copy</button>
+            </div>
+          </div>
+        </section>
+
+        <p class="meta" id="meta-line">
+          v1.0.0 / Windows 10 and 11 (64-bit) / WASAPI Audio, FFmpeg, 24-bit WAV Kits &amp; SF2 SoundFont bundled
+        </p>
+
+        <section class="details">
+          <div>
+            <h2>What is included</h2>
+            <ul class="feature-list">
+              <li><strong>FL-style production suite:</strong> 16/32/64-step Channel Rack with per-step velocity, pitch, pan, ratchets, and probability, zoomable Piano Roll with scale snapping, chord stamping, and .mid import/export, magnetic Playlist with razor splitting and automation lanes, and a full Console Mixer with stackable EQ, Compressor, Reverb, Delay, Saturation, Filter, and Chorus.</li>
+              <li><strong>Built-in instruments &amp; sound library:</strong> Dual-oscillator wavetable SubSynth, 4-operator 6-algorithm FMSynth, DrumSynth, Sampler, and RIFF/SF2 SoundFont player, pre-loaded with 4 studio 24-bit WAV drum kits, 4 wavetables, and a starter .sf2 bank.</li>
+              <li><strong>JS &amp; Python live coding:</strong> Quantized hot-reloading JavaScript (mini-notation, Euclidean rhythms, Markov chains, LFOs) and dual-mode Python (local Python 3 bridge plus embedded evaluator) with categorized Code Presets, Snippets drawer, inline AST pattern/piano-roll previews with isolated audition, and one-click Bake to Pattern or WAV.</li>
+              <li><strong>Beat-reactive modulation &amp; lossless mastering:</strong> Sample-accurate AudioWorklet clock, lock-free SharedArrayBuffer oscilloscope/FFT/LUFS/True Peak meters, 4-band frequency &amp; envelope follower modulation matrix, and non-realtime 32-bit float / 24-bit / 16-bit WAV (TPDF &amp; shaped dither), FLAC, AIFF, 320k MP3, OGG, and batch stem export.</li>
+            </ul>
+          </div>
+
+          <div>
+            <h2>First launch on Windows</h2>
+            <p>
+              Because this is an independent open-source build without a commercial code-signing certificate, Windows SmartScreen may show a warning the first time you open it. Select More info, then Run anyway.
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span id="footer-ver">Bebeat 1.0.0</span>
+        <span id="footer-status">Windows x64</span>
+      </footer>
+    </div>
+
+    <script>
+      (async function () {
+        const REPO = 'averywsc/bebeat';
+
+        document.querySelectorAll('[data-copy]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const el = document.getElementById(btn.getAttribute('data-copy'));
+            if (!el) return;
+            const raw = el.textContent.replace(/^SHA-256\s+/i, '').trim();
+            try {
+              await navigator.clipboard.writeText(raw);
+              btn.textContent = 'Copied';
+              setTimeout(() => (btn.textContent = 'Copy'), 1500);
+            } catch {
+              btn.textContent = 'Done';
+            }
+          });
+        });
+
+        const setLink = (id, href, text) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.href = href;
+          if (text) el.textContent = text;
+        };
+
+        const setText = (id, text) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = text;
+        };
+
+        const isLocal =
+          (location.hostname === 'localhost' || location.hostname === '127.0.0.1') &&
+          location.protocol !== 'file:';
+
+        if (isLocal) {
+          const preview = document.getElementById('web-preview-link');
+          if (preview) preview.style.display = 'inline';
+        }
+
+        // Query latest GitHub Release assets automatically when deployed on GitHub Pages
+        try {
+          const res = await fetch('https://api.github.com/repos/' + REPO + '/releases/latest');
+          if (!res.ok) return;
+          const rel = await res.json();
+          if (rel.tag_name) {
+            setText('footer-ver', 'Bebeat ' + rel.tag_name.replace(/^v/i, ''));
+            setText(
+              'meta-line',
+              rel.tag_name +
+                ' / Windows 10 and 11 (64-bit) / WASAPI Audio, FFmpeg, 24-bit WAV Kits & SF2 SoundFont bundled'
+            );
+          }
+          const assets = Array.isArray(rel.assets) ? rel.assets : [];
+          const setup = assets.find((a) => /setup.*\.exe$/i.test(a.name));
+          const portable = assets.find((a) => /portable.*\.exe$/i.test(a.name));
+          if (setup) {
+            setLink('installer-btn', setup.browser_download_url, 'Download ' + setup.name);
+            setText('setup-size', (setup.size / (1024 * 1024)).toFixed(1) + ' MB');
+          }
+          if (portable) {
+            setLink('portable-btn', portable.browser_download_url, 'Download ' + portable.name);
+            setText('portable-size', (portable.size / (1024 * 1024)).toFixed(1) + ' MB');
+          }
+        } catch {}
+      })();
+    </script>
+  </body>
+</html>
