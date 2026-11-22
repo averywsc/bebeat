@@ -17,8 +17,8 @@
     "kits:generate": "python scripts/generate_kits.py",
     "wasm:build": "cd dsp-wasm && wasm-pack build --target web --out-dir ../public/wasm",
     "test": "npx tsx --test tests/*.test.ts",
-    "dist:win": "npm run build:electron && electron-builder --win",
-    "dist:win:portable": "npm run build:electron && electron-builder --win portable",
+    "dist:win": "npm run build:electron && electron-builder --win --publish never",
+    "dist:win:portable": "npm run build:electron && electron-builder --win portable --publish never",
     "preview": "vite preview"
   },
   "build": {
