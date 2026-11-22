@@ -145,6 +145,102 @@ export const SUB_SYNTH_PRESETS: Record<string, SubSynthParams> = {
     glide: 0.03,
     drive: 0.25,
   },
+  'Lush Juno Pad': {
+    presetName: 'Lush Juno Pad',
+    osc1Wave: 'sawtooth',
+    osc2Wave: 'square',
+    oscMix: 0.38,
+    osc2Semi: -12,
+    osc2Detune: 7,
+    wavetableName: 'warm_organ',
+    wavetableMorph: 0.45,
+    unisonVoices: 5,
+    unisonDetune: 18,
+    stereoSpread: 0.95,
+    filterMode: 'lowpass',
+    cutoff: 1350,
+    resonance: 2.2,
+    filterEnvAmount: 1800,
+    ampEnv: { attack: 0.28, decay: 0.8, sustain: 0.84, release: 1.25 },
+    filterEnv: { attack: 0.35, decay: 0.9, sustain: 0.52, release: 0.95 },
+    lfoRateHz: 0.45,
+    lfoDepth: 0.26,
+    lfoTarget: 'cutoff',
+    glide: 0.02,
+    drive: 0.12,
+  },
+  'SuperSaw Anthem': {
+    presetName: 'SuperSaw Anthem',
+    osc1Wave: 'sawtooth',
+    osc2Wave: 'sawtooth',
+    oscMix: 0.5,
+    osc2Semi: 12,
+    osc2Detune: 14,
+    wavetableName: 'acid_morph',
+    wavetableMorph: 0.2,
+    unisonVoices: 5,
+    unisonDetune: 28,
+    stereoSpread: 1.0,
+    filterMode: 'lowpass',
+    cutoff: 5400,
+    resonance: 1.6,
+    filterEnvAmount: 2400,
+    ampEnv: { attack: 0.01, decay: 0.3, sustain: 0.78, release: 0.36 },
+    filterEnv: { attack: 0.01, decay: 0.28, sustain: 0.55, release: 0.3 },
+    lfoRateHz: 4.5,
+    lfoDepth: 0.04,
+    lfoTarget: 'pitch',
+    glide: 0.02,
+    drive: 0.22,
+  },
+  'Lo-Fi Tape Keys': {
+    presetName: 'Lo-Fi Tape Keys',
+    osc1Wave: 'triangle',
+    osc2Wave: 'sine',
+    oscMix: 0.4,
+    osc2Semi: 12,
+    osc2Detune: 12,
+    wavetableName: 'warm_organ',
+    wavetableMorph: 0.3,
+    unisonVoices: 2,
+    unisonDetune: 11,
+    stereoSpread: 0.55,
+    filterMode: 'lowpass',
+    cutoff: 1450,
+    resonance: 1.4,
+    filterEnvAmount: 900,
+    ampEnv: { attack: 0.012, decay: 0.52, sustain: 0.38, release: 0.42 },
+    filterEnv: { attack: 0.01, decay: 0.4, sustain: 0.25, release: 0.35 },
+    lfoRateHz: 2.1,
+    lfoDepth: 0.14,
+    lfoTarget: 'pitch',
+    glide: 0.01,
+    drive: 0.34,
+  },
+  'Formant Wobble Bass': {
+    presetName: 'Formant Wobble Bass',
+    osc1Wave: 'wavetable',
+    osc2Wave: 'sawtooth',
+    oscMix: 0.35,
+    osc2Semi: -12,
+    osc2Detune: 8,
+    wavetableName: 'formant_sweep',
+    wavetableMorph: 0.78,
+    unisonVoices: 3,
+    unisonDetune: 14,
+    stereoSpread: 0.45,
+    filterMode: 'bandpass',
+    cutoff: 620,
+    resonance: 6.5,
+    filterEnvAmount: 2400,
+    ampEnv: { attack: 0.006, decay: 0.35, sustain: 0.85, release: 0.16 },
+    filterEnv: { attack: 0.01, decay: 0.22, sustain: 0.45, release: 0.15 },
+    lfoRateHz: 3.2,
+    lfoDepth: 0.65,
+    lfoTarget: 'cutoff',
+    glide: 0.05,
+    drive: 0.65,
+  },
 };
 
 export const FM_SYNTH_PRESETS: Record<string, FmSynthParams> = {
@@ -202,6 +298,48 @@ export const FM_SYNTH_PRESETS: Record<string, FmSynthParams> = {
       { ratio: 3.0, detune: 2, level: 0.68, env: { attack: 0.001, decay: 0.11, sustain: 0.0, release: 0.09 } },
       { ratio: 1.5, detune: -3, level: 0.55, env: { attack: 0.002, decay: 0.22, sustain: 0.04, release: 0.15 } },
       { ratio: 5.0, detune: 4, level: 0.4, env: { attack: 0.001, decay: 0.08, sustain: 0.0, release: 0.06 } },
+    ],
+  },
+  'Kalimba Wood Mallet': {
+    presetName: 'Kalimba Wood Mallet',
+    algorithm: 2,
+    feedback: 0.08,
+    modIndex: 2.9,
+    cutoff: 4800,
+    resonance: 1.1,
+    operators: [
+      { ratio: 1.0, detune: 0, level: 0.95, env: { attack: 0.0015, decay: 0.48, sustain: 0.02, release: 0.28 } },
+      { ratio: 4.0, detune: 1, level: 0.52, env: { attack: 0.001, decay: 0.055, sustain: 0.0, release: 0.05 } },
+      { ratio: 2.0, detune: -2, level: 0.38, env: { attack: 0.001, decay: 0.14, sustain: 0.0, release: 0.1 } },
+      { ratio: 6.0, detune: 3, level: 0.25, env: { attack: 0.001, decay: 0.03, sustain: 0.0, release: 0.03 } },
+    ],
+  },
+  'Crystal Harp': {
+    presetName: 'Crystal Harp',
+    algorithm: 1,
+    feedback: 0.15,
+    modIndex: 3.1,
+    cutoff: 12000,
+    resonance: 0.9,
+    operators: [
+      { ratio: 1.0, detune: 0, level: 0.85, env: { attack: 0.002, decay: 1.4, sustain: 0.1, release: 0.9 } },
+      { ratio: 2.0, detune: 3, level: 0.65, env: { attack: 0.001, decay: 0.55, sustain: 0.02, release: 0.4 } },
+      { ratio: 1.0, detune: -4, level: 0.72, env: { attack: 0.003, decay: 1.2, sustain: 0.08, release: 0.8 } },
+      { ratio: 3.0, detune: 2, level: 0.45, env: { attack: 0.001, decay: 0.35, sustain: 0.0, release: 0.25 } },
+    ],
+  },
+  'Deep Drawbar Organ': {
+    presetName: 'Deep Drawbar Organ',
+    algorithm: 5,
+    feedback: 0.05,
+    modIndex: 1.0,
+    cutoff: 4200,
+    resonance: 1.0,
+    operators: [
+      { ratio: 0.5, detune: 0, level: 0.85, env: { attack: 0.008, decay: 0.1, sustain: 0.92, release: 0.18 } },
+      { ratio: 1.0, detune: 2, level: 0.8, env: { attack: 0.008, decay: 0.1, sustain: 0.9, release: 0.18 } },
+      { ratio: 2.0, detune: -2, level: 0.52, env: { attack: 0.008, decay: 0.1, sustain: 0.78, release: 0.16 } },
+      { ratio: 3.0, detune: 4, level: 0.36, env: { attack: 0.006, decay: 0.12, sustain: 0.65, release: 0.14 } },
     ],
   },
 };
@@ -403,6 +541,53 @@ def generative(bar):
         pad.synth("SubSynth", "Glass Pad").mixer(4).play(Chord.min7("F3"), dur="1n", at=0.0, vel=0.55)
     else:
         pad.synth("SubSynth", "Glass Pad").mixer(4).play(Chord.maj7("Eb3"), dur="1n", at=0.0, vel=0.55)`,
+  },
+  {
+    id: 'js-lofi-rhodes',
+    name: 'Lo-Fi Rhodes & Dusty Pocket',
+    category: 'Lo-Fi',
+    lang: 'javascript',
+    description: 'Swung 84 BPM dusty beat with warm tape keys and mellow sub-bass.',
+    bpm: 84,
+    code: `// Lo-Fi Hip-Hop Tape Rhodes
+clock.bpm = 84;
+clock.swing = 0.26;
+
+drums.kit("808_clean").mixer(1)
+  .pattern("bd ~ ~ [~ bd], ~ ~ sn ~, hh*8")
+  .gain(0.84);
+
+pad.synth("SubSynth", "Lo-Fi Tape Keys").mixer(4)
+  .chords([Chord.maj7("F3"), Chord.min7("E3"), Chord.min7("D3"), Chord.maj7("C3")], "2n")
+  .cutoff(lfo.sine(0.2, 850, 2100))
+  .gain(0.72);
+
+bass.synth("SubSynth", "Clean 808 Sub").mixer(2)
+  .notes("f1 ~ ~ e1 | d1 ~ ~ c1", "4n")
+  .gain(0.86);`,
+  },
+  {
+    id: 'js-dnb-jungle',
+    name: 'Drum & Bass 172 Roller',
+    category: 'DnB',
+    lang: 'javascript',
+    description: 'High-energy 172 BPM two-step breakbeat with reese bass and band-reactive arps.',
+    bpm: 172,
+    code: `// 172 BPM Liquid / Jungle Roller
+clock.bpm = 172;
+
+drums.kit("ukg_break").mixer(1)
+  .pattern("bd ~ ~ [~ bd], ~ sn ~ [~ sn], hh*16")
+  .gain(0.95);
+
+bass.synth("SubSynth", "Midnight Reese").mixer(2)
+  .notes("f1 ~ ~ ~ | ab1 ~ g1 ~", "4n")
+  .cutoff(bands.sub.map(320, 2400))
+  .gain(0.9);
+
+lead.synth("FMSynth", "Crystal Harp").mixer(3)
+  .euclid(5, 16, Scale.minor("F4"), "16n")
+  .gain(0.6);`,
   },
 ];
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Play,
   Square,
@@ -10,27 +10,66 @@ import {
   SlidersHorizontal,
   Download,
   Radio,
+  Keyboard,
+  Layers,
+  PanelLeft,
+  HelpCircle,
+  Home,
 } from 'lucide-react';
-import type { ProjectState } from '../types/daw';
+import type { ProjectState, WorkspaceTab } from '../types/daw';
 import { projectStore } from '../state/projectStore';
 import { audioEngine } from '../audio/engine';
-import { triggerBrowserDownload } from '../services/bridge';
 
 interface TopBarProps {
   project: ProjectState;
+  activeTab: WorkspaceTab;
+  onPlayCurrentPart: () => void;
+  onPlayAll: () => void;
+  onGoHome: () => void;
+  onQuickSave: () => void;
+  onSaveProjectFile: () => void;
+  onOpenProjectFile: () => void;
   onOpenExport: () => void;
   onOpenSettings: () => void;
+  onOpenHelp: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ project, onOpenExport, onOpenSettings }) => {
+const PART_PLAY_LABELS: Record<WorkspaceTab, string> = {
+  'channel-rack': 'Play Pattern',
+  'piano-roll': 'Play Piano',
+  playlist: 'Play Song',
+  mixer: 'Play Mix',
+  instruments: 'Play Inst',
+  'audio-editor': 'Play Part',
+  score: 'Play Score',
+  performance: 'Play Live',
+  'live-code': 'Play Code',
+};
+
+export const TopBar: React.FC<TopBarProps> = ({
+  project,
+  activeTab,
+  onPlayCurrentPart,
+  onPlayAll,
+  onGoHome,
+  onQuickSave,
+  onSaveProjectFile,
+  onOpenProjectFile,
+  onOpenExport,
+  onOpenSettings,
+  onOpenHelp,
+}) => {
   const [playing, setPlaying] = useState(false);
+  const [playScope, setPlayScope] = useState<string>('all');
   const [timecode, setTimecode] = useState('001:1:1');
+  const tapTimesRef = useRef<number[]>([]);
 
   useEffect(() => {
     let raf = 0;
     const poll = () => {
       const t = audioEngine.readTelemetry();
       setPlaying(t.playing);
+      setPlayScope(audioEngine.getPlaybackScope().scope);
       const totalSteps = Math.floor(Math.max(0, t.beatPosition) * 4);
       const bar = Math.floor(totalSteps / 16) + 1;
       const beat = Math.floor((totalSteps % 16) / 4) + 1;
@@ -42,75 +81,99 @@ export const TopBar: React.FC<TopBarProps> = ({ project, onOpenExport, onOpenSet
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const handlePlayToggle = async () => {
-    if (playing) {
-      audioEngine.stop(false);
-    } else {
-      await audioEngine.play();
-    }
-  };
-
   const handleStop = () => {
     audioEngine.stop(true);
   };
 
-  const handleSaveProject = async () => {
-    const json = JSON.stringify(projectStore.getState(), null, 2);
-    const filename = `${project.name.replace(/[^a-z0-9_-]+/gi, '_').toLowerCase()}.bebeat`;
-    if (window.bebeat?.saveProject) {
-      await window.bebeat.saveProject(filename, json);
-    } else {
-      triggerBrowserDownload(filename, json, 'application/json');
+  const handleToggleRecord = async () => {
+    const nextRec = !project.recording;
+    projectStore.update((s) => {
+      s.recording = nextRec;
+    }, false);
+    if (nextRec && !playing) {
+      onPlayCurrentPart();
     }
   };
 
-  const handleOpenProject = async () => {
-    if (window.bebeat?.openProject) {
-      const res = await window.bebeat.openProject();
-      if (res?.json) {
-        try {
-          const parsed = JSON.parse(res.json) as ProjectState;
-          if (parsed.channels && parsed.patterns) {
-            projectStore.replaceState(parsed);
-          }
-        } catch {
-          // ignore malformed file
-        }
-      }
-      return;
+  const handleTapTempo = () => {
+    const now = performance.now();
+    const list = tapTimesRef.current.filter((t) => now - t < 2500);
+    list.push(now);
+    tapTimesRef.current = list.slice(-6);
+    if (list.length >= 2) {
+      let sum = 0;
+      for (let i = 1; i < list.length; i++) sum += list[i] - list[i - 1];
+      const avgMs = sum / (list.length - 1);
+      const bpm = Math.max(40, Math.min(260, Math.round(60000 / avgMs)));
+      projectStore.update((s) => {
+        s.bpm = bpm;
+      }, false);
     }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.bebeat,.json';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      try {
-        const parsed = JSON.parse(await file.text()) as ProjectState;
-        if (parsed.channels && parsed.patterns) projectStore.replaceState(parsed);
-      } catch {}
-    };
-    input.click();
   };
+
+  const isPlayingPart = playing && playScope !== 'all';
+  const isPlayingAll = playing && playScope === 'all';
+  const masterTrack = project.mixerTracks.find((t) => t.kind === 'master');
 
   return (
     <header className="topbar">
-      <div className="wordmark">Bebeat</div>
+      <button
+        className="sm icon-only"
+        onClick={onGoHome}
+        title="Home Screen (Recent Projects, New Templates & Guide)"
+      >
+        <Home size={13} />
+      </button>
+      <button
+        className={project.browserOpen ? 'active sm icon-only' : 'sm icon-only'}
+        onClick={() => projectStore.update((s) => { s.browserOpen = !s.browserOpen; }, false)}
+        title="Toggle Studio Browser (Plugins, Loops, Sound Library, Files, Project)"
+      >
+        <PanelLeft size={13} />
+      </button>
+      <div className="wordmark" style={{ cursor: 'pointer' }} onClick={onGoHome}>Bebeat</div>
+      <input
+        type="text"
+        value={project.name}
+        onChange={(e) => projectStore.update((s) => { s.name = e.target.value; }, false)}
+        title="Project Name"
+        style={{ width: 132, padding: '3px 7px', fontSize: 11.5 }}
+      />
       <div className="topbar-sep" />
 
-      {/* Transport Controls */}
+      {/* Context-Aware Play + Play All + Stop + Record */}
       <div className="transport-group">
         <button
-          className={playing ? 'active' : ''}
-          onClick={handlePlayToggle}
-          title="Play / Pause (Space)"
+          className={isPlayingPart ? 'active' : ''}
+          onClick={() => (isPlayingPart ? audioEngine.stop(false) : onPlayCurrentPart())}
+          title="Play only the active section / instrument you are editing (Space)"
         >
-          <Play size={13} fill={playing ? '#080C18' : 'none'} />
-          <span>{playing ? 'Playing' : 'Play'}</span>
+          <Play size={12} fill={isPlayingPart ? '#080C18' : 'none'} />
+          <span>{isPlayingPart ? 'Pause' : PART_PLAY_LABELS[activeTab]}</span>
         </button>
+
+        <button
+          className={isPlayingAll ? 'active' : ''}
+          onClick={() => (isPlayingAll ? audioEngine.stop(false) : onPlayAll())}
+          title="Play all channels, patterns, and active live code together (Shift+Space)"
+        >
+          <Layers size={12} />
+          <span>{isPlayingAll ? 'Playing All' : 'Play All'}</span>
+        </button>
+
         <button className="icon-only" onClick={handleStop} title="Stop and Reset Playhead">
           <Square size={12} />
         </button>
+
+        <button
+          className={project.recording ? 'rec-armed' : ''}
+          onClick={() => void handleToggleRecord()}
+          title="Record notes live from your PC Keyboard or MIDI controller into the Piano Roll"
+        >
+          <span className="rec-dot" />
+          <span>{project.recording ? 'Rec ON' : 'Rec'}</span>
+        </button>
+
         <button
           className={project.loopEnabled ? 'active sm' : 'sm'}
           onClick={() => projectStore.update((s) => { s.loopEnabled = !s.loopEnabled; }, false)}
@@ -119,6 +182,7 @@ export const TopBar: React.FC<TopBarProps> = ({ project, onOpenExport, onOpenSet
           <Repeat size={12} />
           <span>Loop</span>
         </button>
+
         <button
           className={project.metronome ? 'active sm' : 'sm'}
           onClick={() => projectStore.update((s) => { s.metronome = !s.metronome; }, false)}
@@ -129,27 +193,11 @@ export const TopBar: React.FC<TopBarProps> = ({ project, onOpenExport, onOpenSet
         </button>
       </div>
 
-      {/* Mode Switch: Pattern vs Song */}
-      <div className="transport-group">
-        <button
-          className={project.playbackMode === 'pattern' ? 'active sm' : 'sm'}
-          onClick={() => projectStore.update((s) => { s.playbackMode = 'pattern'; }, false)}
-        >
-          PAT
-        </button>
-        <button
-          className={project.playbackMode === 'song' ? 'active sm' : 'sm'}
-          onClick={() => projectStore.update((s) => { s.playbackMode = 'song'; }, false)}
-        >
-          SONG
-        </button>
-      </div>
-
       <div className="time-readout mono" title="BAR : BEAT : STEP">
         {timecode}
       </div>
 
-      {/* BPM & Swing */}
+      {/* BPM + Tap Tempo + Swing */}
       <div className="param-pill">
         <span>BPM</span>
         <input
@@ -166,9 +214,12 @@ export const TopBar: React.FC<TopBarProps> = ({ project, onOpenExport, onOpenSet
           }}
         />
       </div>
+      <button className="sm" onClick={handleTapTempo} title="Click rhythmically to set BPM">
+        Tap
+      </button>
 
       <div className="param-pill">
-        <span>SWING</span>
+        <span>Swing</span>
         <input
           type="number"
           min={0}
@@ -184,6 +235,20 @@ export const TopBar: React.FC<TopBarProps> = ({ project, onOpenExport, onOpenSet
         />
         <span className="mono">%</span>
       </div>
+
+      {/* Typing-to-Piano Toggle + Octave */}
+      <button
+        className={project.typingKeyboardEnabled ? 'active sm' : 'sm'}
+        onClick={() =>
+          projectStore.update((s) => {
+            s.typingKeyboardEnabled = !s.typingKeyboardEnabled;
+          }, false)
+        }
+        title="Play piano on your computer keyboard (Z-M lower octave, Q-P upper octave, [ / ] change octave)"
+      >
+        <Keyboard size={12} />
+        <span>Keys (Oct {project.typingOctave})</span>
+      </button>
 
       <div className="topbar-sep" />
 
@@ -206,18 +271,68 @@ export const TopBar: React.FC<TopBarProps> = ({ project, onOpenExport, onOpenSet
         </button>
       </div>
 
+      {/* Main Volume & Master Pitch Panel */}
+      <div className="param-pill" title="Master Output Volume">
+        <span>Vol</span>
+        <input
+          type="range"
+          min={0}
+          max={1.3}
+          step={0.02}
+          style={{ width: 54 }}
+          value={masterTrack?.volume ?? 0.96}
+          onChange={(e) => {
+            const v = parseFloat(e.target.value);
+            projectStore.update((s) => {
+              const m = s.mixerTracks.find((t) => t.kind === 'master');
+              if (m) m.volume = v;
+            }, false);
+          }}
+        />
+      </div>
+
+      <div className="param-pill" title="Global Master Pitch Shift (Semitones)">
+        <span>Pitch</span>
+        <input
+          type="number"
+          min={-12}
+          max={12}
+          step={1}
+          style={{ width: 38 }}
+          value={project.masterPitchSemi}
+          onChange={(e) => {
+            const v = Math.max(-12, Math.min(12, parseInt(e.target.value, 10) || 0));
+            projectStore.update((s) => { s.masterPitchSemi = v; }, false);
+          }}
+        />
+      </div>
+
+      <button
+        className={project.automationRecording ? 'rec-armed sm' : 'sm'}
+        onClick={() => projectStore.update((s) => { s.automationRecording = !s.automationRecording; }, false)}
+        title="Record live knob/X-Y controller movements into Automation Lanes"
+      >
+        Auto Rec
+      </button>
+
       <div className="spacer" />
 
       <div className="transport-group">
-        <button onClick={handleOpenProject} title="Open .bebeat Project">
+        <button className="icon-only" onClick={onOpenHelp} title="Quick Help & Keyboard Shortcuts">
+          <HelpCircle size={13} />
+        </button>
+        <button onClick={onOpenProjectFile} title="Open .bebeat Project File">
           <FolderOpen size={13} />
           <span>Open</span>
         </button>
-        <button onClick={handleSaveProject} title="Save .bebeat Project">
+        <button onClick={onQuickSave} title="Save to Recent Projects (Ctrl+S)">
           <Save size={13} />
           <span>Save</span>
         </button>
-        <button onClick={onOpenSettings} title="Audio WASAPI, MIDI Learn & Python Runtime Settings">
+        <button className="sm" onClick={onSaveProjectFile} title="Save .bebeat Project File to Disk">
+          <span>Save File</span>
+        </button>
+        <button onClick={onOpenSettings} title="Audio WASAPI, MIDI Learn, Theme & Python Settings">
           <SlidersHorizontal size={13} />
           <span>Audio / MIDI</span>
         </button>

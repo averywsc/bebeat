@@ -6,7 +6,32 @@ export type WorkspaceTab =
   | 'playlist'
   | 'mixer'
   | 'instruments'
+  | 'audio-editor'
+  | 'score'
+  | 'performance'
   | 'live-code';
+
+export type EditorTool =
+  | 'draw'
+  | 'paint'
+  | 'delete'
+  | 'mute'
+  | 'slip'
+  | 'slice'
+  | 'select'
+  | 'zoom'
+  | 'playback';
+
+export type TrackKind = 'software' | 'audio' | 'drummer' | 'master';
+
+export interface PlaylistTrackMeta {
+  index: number;
+  name: string;
+  kind: TrackKind;
+  locked: boolean;
+  muted: boolean;
+  solo: boolean;
+}
 
 export type OscWaveform = 'sine' | 'triangle' | 'sawtooth' | 'square' | 'wavetable';
 export type FilterMode = 'lowpass' | 'highpass' | 'bandpass' | 'notch';
@@ -164,6 +189,11 @@ export interface Channel {
   soundFont: SoundFontParams;
   /** Optional binding name used by live code (e.g., "drums", "bass", "lead", "pad") */
   liveCodeAlias?: string;
+  /** Plugin database identity (e.g., "FLEX", "Harmor", "Transistor Bass", "Sakura", "Layer") */
+  pluginId?: string;
+  pluginName?: string;
+  /** Child channel IDs triggered simultaneously when engine/plugin is Layer */
+  layerChildIds?: string[];
 }
 
 export interface Pattern {
@@ -188,6 +218,8 @@ export type FxType =
 export interface FxSlot {
   id: string;
   type: FxType;
+  pluginId?: string;
+  pluginName?: string;
   enabled: boolean;
   params: Record<string, number>;
 }
@@ -286,6 +318,20 @@ export interface ProjectState {
   loopStartBeat: number;
   loopEndBeat: number;
   metronome: boolean;
+  recording: boolean;
+  recordQuantize: boolean;
+  overdubRecording: boolean;
+  automationRecording: boolean;
+  stepEntryMode: boolean;
+  typingKeyboardEnabled: boolean;
+  typingOctave: number; // base octave e.g. 3 => C3..E5
+  masterPitchSemi: number; // -12..+12 global pitch shift
+  activeTool: EditorTool;
+  themeId: string;
+  browserOpen: boolean;
+  notebookText: string;
+  playlistTracks: PlaylistTrackMeta[];
+  tempoTrackPoints: Array<{ beat: number; bpm: number }>;
   activePatternId: string;
   selectedChannelId: string;
   selectedMixerTrackId: string;

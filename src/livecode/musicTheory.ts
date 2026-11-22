@@ -356,3 +356,77 @@ export function normalizeDrumToken(tok: string): DrumVoiceName | null {
   };
   return map[t] ?? null;
 }
+
+/** Computer QWERTY keyboard -> semitone offset from base octave (2 full octaves + 4 notes) */
+export const TYPING_KEY_TO_SEMITONE: Record<string, number> = {
+  // Lower octave (C .. C+1)
+  z: 0, s: 1, x: 2, d: 3, c: 4, v: 5, g: 6, b: 7, h: 8, n: 9, j: 10, m: 11, ',': 12,
+  // Upper octave (C+1 .. E+2)
+  q: 12, '2': 13, w: 14, '3': 15, e: 16, r: 17, '5': 18, t: 19, '6': 20, y: 21, '7': 22, u: 23,
+  i: 24, '9': 25, o: 26, '0': 27, p: 28,
+};
+
+export const SEMITONE_TO_KEY_LABEL: Record<number, string> = {
+  0: 'Z', 1: 'S', 2: 'X', 3: 'D', 4: 'C', 5: 'V', 6: 'G', 7: 'B', 8: 'H', 9: 'N', 10: 'J', 11: 'M',
+  12: 'Q', 13: '2', 14: 'W', 15: '3', 16: 'E', 17: 'R', 18: '5', 19: 'T', 20: '6', 21: 'Y', 22: '7', 23: 'U',
+  24: 'I', 25: '9', 26: 'O', 27: '0', 28: 'P',
+};
+
+export interface ChordProgressionTemplate {
+  id: string;
+  name: string;
+  chords: Array<{ degreeOffset: number; quality: string }>;
+}
+
+export const CHORD_PROGRESSIONS: ChordProgressionTemplate[] = [
+  {
+    id: 'dark-minor',
+    name: 'Dark Minor (i - VI - III - VII)',
+    chords: [
+      { degreeOffset: 0, quality: 'min7' },
+      { degreeOffset: 8, quality: 'maj7' },
+      { degreeOffset: 3, quality: 'maj7' },
+      { degreeOffset: 10, quality: 'dom7' },
+    ],
+  },
+  {
+    id: 'neo-soul',
+    name: 'Neo-Soul (ii9 - V13 - Imaj9 - vi9)',
+    chords: [
+      { degreeOffset: 2, quality: 'min9' },
+      { degreeOffset: 7, quality: 'dom7' },
+      { degreeOffset: 0, quality: 'maj9' },
+      { degreeOffset: 9, quality: 'min9' },
+    ],
+  },
+  {
+    id: 'lofi-chill',
+    name: 'Lo-Fi Chill (IVmaj7 - iii7 - ii7 - Imaj7)',
+    chords: [
+      { degreeOffset: 5, quality: 'maj7' },
+      { degreeOffset: 4, quality: 'min7' },
+      { degreeOffset: 2, quality: 'min7' },
+      { degreeOffset: 0, quality: 'maj7' },
+    ],
+  },
+  {
+    id: 'pop-anthem',
+    name: 'Anthem (I - V - vi - IV)',
+    chords: [
+      { degreeOffset: 0, quality: 'maj' },
+      { degreeOffset: 7, quality: 'maj' },
+      { degreeOffset: 9, quality: 'min' },
+      { degreeOffset: 5, quality: 'maj' },
+    ],
+  },
+  {
+    id: 'ukg-stabs',
+    name: 'UKG / Deep House (i9 - iv9 - VI9 - v7)',
+    chords: [
+      { degreeOffset: 0, quality: 'min9' },
+      { degreeOffset: 5, quality: 'min9' },
+      { degreeOffset: 8, quality: 'maj9' },
+      { degreeOffset: 7, quality: 'min7' },
+    ],
+  },
+];

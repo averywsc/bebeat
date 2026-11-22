@@ -16,6 +16,7 @@ export interface BebeatElectronAPI {
   readAssetBinary: (relPath: string) => Promise<Uint8Array>;
   readAssetJson: (relPath: string) => Promise<unknown>;
   runPython: (code: string) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
+  renderSapiTts?: (text: string, rate: number) => Promise<{ ok: boolean; bytes?: Uint8Array; error?: string }>;
   transcodeSave: (req: {
     wavBytes: Uint8Array;
     outputPath: string;

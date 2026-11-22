@@ -5,6 +5,7 @@ import {
   probeCapabilities,
   readAssetBinary,
   readAssetJson,
+  renderWindowsSapiWav,
   runLocalPythonScript,
   transcodeAndSaveAudio,
   type ExportTranscodeRequest,
@@ -70,6 +71,7 @@ app.whenReady().then(() => {
   ipcMain.handle('bebeat:read-asset-bin', (_e, rel: string) => readAssetBinary(rel));
   ipcMain.handle('bebeat:read-asset-json', (_e, rel: string) => readAssetJson(rel));
   ipcMain.handle('bebeat:run-python', (_e, code: string) => runLocalPythonScript(code));
+  ipcMain.handle('bebeat:render-sapi-tts', (_e, text: string, rate: number) => renderWindowsSapiWav(text, rate));
   ipcMain.handle('bebeat:transcode-save', (_e, req: ExportTranscodeRequest) => transcodeAndSaveAudio(req));
 
   ipcMain.handle('bebeat:save-project', async (_e, defaultName: string, json: string) => {
@@ -116,10 +118,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('bebeat:pick-audio-or-sf2', async () => {
     const res = await dialog.showOpenDialog({
-      title: 'Import Sample (.wav/.flac) or SoundFont (.sf2) or MIDI (.mid)',
+      title: 'Import Music / Sample (.mp3/.wav/.flac/.ogg/.m4a), SoundFont (.sf2) or MIDI (.mid)',
       properties: ['openFile'],
       filters: [
-        { name: 'Audio, SoundFont & MIDI', extensions: ['wav', 'flac', 'mp3', 'ogg', 'sf2', 'mid', 'midi'] },
+        { name: 'Audio, SoundFont & MIDI', extensions: ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'sf2', 'mid', 'midi'] },
       ],
     });
     if (res.canceled || res.filePaths.length === 0) return null;

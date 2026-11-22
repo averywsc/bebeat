@@ -5,6 +5,7 @@ import type { SystemCapabilities } from '../services/bridge';
 import type { PythonRuntimeMode } from '../livecode/pythonRuntime';
 import { audioEngine } from '../audio/engine';
 import { projectStore } from '../state/projectStore';
+import { THEME_PRESETS } from '../audio/catalog/plugins';
 
 interface SettingsModalProps {
   project: ProjectState;
@@ -105,6 +106,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               FFmpeg Lossless Transcoder: {capabilities?.ffmpegAvailable ? 'Bundled Ready' : 'Offline WAV Mode'}
               <br />
               Resource Root: {capabilities?.resourceRoot || './assets'}
+            </div>
+          </div>
+
+          {/* Theme Customization & Audio Unit / Plugin Extensions */}
+          <div className="inst-section">
+            <div className="inst-section-title">Theme Customization &amp; Plugin Extensions</div>
+            <div className="kv-grid">
+              <label className="field-label">
+                Studio Color Theme
+                <select
+                  value={project.themeId}
+                  onChange={(e) => projectStore.update((s) => { s.themeId = e.target.value; }, false)}
+                >
+                  {THEME_PRESETS.map((th) => (
+                    <option key={th.id} value={th.id}>{th.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field-label">
+                Plugin Host Bridge
+                <input
+                  type="text"
+                  readOnly
+                  value="AudioWorklet + WASM + SF2 + AU/VST3 Bridge"
+                />
+              </label>
             </div>
           </div>
 

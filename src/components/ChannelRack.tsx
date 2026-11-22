@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Volume2, Trash2, Copy, Music } from 'lucide-react';
-import type { InstrumentEngine, ProjectState } from '../types/daw';
+import { Plus, Volume2, Trash2, Copy, Music, Shuffle, RotateCcw, RotateCw } from 'lucide-react';
+import type { DrumVoiceName, InstrumentEngine, ProjectState } from '../types/daw';
 import { createChannel, createEmptySteps, projectStore, uid } from '../state/projectStore';
+import { euclid } from '../livecode/musicTheory';
 import { audioEngine } from '../audio/engine';
 
 interface ChannelRackProps {
@@ -9,6 +10,17 @@ interface ChannelRackProps {
   onOpenPianoRoll: (channelId: string) => void;
   onOpenInstrument: (channelId: string) => void;
 }
+
+const LIVE_DRUM_PADS: Array<{ key: string; voice: DrumVoiceName; label: string }> = [
+  { key: '1', voice: 'bd', label: 'Kick' },
+  { key: '2', voice: 'sn', label: 'Snare' },
+  { key: '3', voice: 'cp', label: 'Clap' },
+  { key: '4', voice: 'hh', label: 'Closed Hat' },
+  { key: '5', voice: 'oh', label: 'Open Hat' },
+  { key: '6', voice: 'rim', label: 'Rimshot' },
+  { key: '7', voice: 'lt', label: 'Low Tom' },
+  { key: '8', voice: 'perc', label: 'FM Perc' },
+];
 
 export const ChannelRack: React.FC<ChannelRackProps> = ({
   project,
@@ -18,8 +30,12 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
   const [playheadStep, setPlayheadStep] = useState(-1);
   const [selectedStep, setSelectedStep] = useState<{ channelId: string; index: number } | null>(null);
   const [newEngine, setNewEngine] = useState<InstrumentEngine>('SubSynth');
+  const [activePad, setActivePad] = useState<DrumVoiceName | null>(null);
+  const [graphOpen, setGraphOpen] = useState(false);
+  const [graphParam, setGraphParam] = useState<'velocity' | 'pitch' | 'pan' | 'probability'>('velocity');
 
   const pattern = project.patterns.find((p) => p.id === project.activePatternId) || project.patterns[0];
+  const selectedChannel = project.channels.find((c) => c.id === project.selectedChannelId) || project.channels[0];
 
   useEffect(() => {
     let raf = 0;
@@ -37,6 +53,24 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
     return () => cancelAnimationFrame(raf);
   }, [pattern]);
 
+  const triggerPad = (voice: DrumVoiceName) => {
+    setActivePad(voice);
+    setTimeout(() => setActivePad((cur) => (cur === voice ? null : cur)), 110);
+    const drumCh =
+      project.channels.find((c) => c.engine === 'DrumSynth' && c.drumSynth.voice === voice) ||
+      project.channels.find((c) => c.engine === 'DrumSynth');
+    if (drumCh) {
+      if (drumCh.drumSynth.voice !== voice) {
+        projectStore.update((s) => {
+          const target = s.channels.find((x) => x.id === drumCh.id);
+          if (target) target.drumSynth.voice = voice;
+        }, false);
+      }
+      void audioEngine.noteOnLive(drumCh.id, 60, 0.9);
+      setTimeout(() => audioEngine.noteOffLive(drumCh.id, 60), 90);
+    }
+  };
+
   if (!pattern) return null;
 
   const insertTracks = project.mixerTracks.filter((m) => m.kind === 'insert');
@@ -51,6 +85,55 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
       s.selectedChannelId = channelId;
     });
     setSelectedStep({ channelId, index: idx });
+  };
+
+  const applyQuickFill = (mode: '4floor' | '2step' | 'offhat' | 'euclid5' | 'euclid7' | 'shiftL' | 'shiftR' | 'randVel' | 'clear') => {
+    if (!selectedChannel) return;
+    projectStore.update((s) => {
+      const pat = s.patterns.find((p) => p.id === s.activePatternId);
+      if (!pat) return;
+      const len = pat.lengthSteps;
+      const row = pat.steps[selectedChannel.id] || createEmptySteps(len);
+
+      if (mode === 'clear') {
+        pat.steps[selectedChannel.id] = createEmptySteps(len);
+        return;
+      }
+      if (mode === 'shiftL') {
+        pat.steps[selectedChannel.id] = [...row.slice(1), row[0]];
+        return;
+      }
+      if (mode === 'shiftR') {
+        pat.steps[selectedChannel.id] = [row[row.length - 1], ...row.slice(0, -1)];
+        return;
+      }
+      if (mode === 'randVel') {
+        pat.steps[selectedChannel.id] = row.map((c) => ({
+          ...c,
+          velocity: c.active ? Math.round((0.45 + Math.random() * 0.55) * 100) / 100 : c.velocity,
+        }));
+        return;
+      }
+
+      const fresh = createEmptySteps(len);
+      if (mode === '4floor') {
+        for (let i = 0; i < len; i += 4) fresh[i].active = true;
+      } else if (mode === '2step') {
+        for (let i = 0; i < len; i += 2) {
+          fresh[i].active = true;
+          fresh[i].velocity = i % 4 === 0 ? 0.9 : 0.65;
+        }
+      } else if (mode === 'offhat') {
+        for (let i = 2; i < len; i += 4) fresh[i].active = true;
+      } else if (mode === 'euclid5' || mode === 'euclid7') {
+        const euc = euclid(mode === 'euclid5' ? 5 : 7, 16);
+        for (let i = 0; i < len; i++) {
+          fresh[i].active = Boolean(euc[i % 16]);
+          fresh[i].velocity = i % 4 === 0 ? 0.92 : 0.72;
+        }
+      }
+      pat.steps[selectedChannel.id] = fresh;
+    });
   };
 
   const setPatternLength = (len: 16 | 32 | 64) => {
@@ -115,12 +198,12 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
 
   return (
     <div className="rack-container">
-      <div className="panel-header">
+      <div className="panel-header" style={{ overflowX: 'auto' }}>
         <span className="panel-title">Channel Rack</span>
         <select
           value={project.activePatternId}
           onChange={(e) => projectStore.update((s) => { s.activePatternId = e.target.value; }, false)}
-          style={{ minWidth: 190 }}
+          style={{ minWidth: 180 }}
         >
           {project.patterns.map((p) => (
             <option key={p.id} value={p.id}>
@@ -150,10 +233,7 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
 
         <div className="spacer" />
 
-        <select
-          value={newEngine}
-          onChange={(e) => setNewEngine(e.target.value as InstrumentEngine)}
-        >
+        <select value={newEngine} onChange={(e) => setNewEngine(e.target.value as InstrumentEngine)}>
           <option value="SubSynth">SubSynth</option>
           <option value="FMSynth">FMSynth</option>
           <option value="DrumSynth">DrumSynth</option>
@@ -162,6 +242,36 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
         </select>
         <button className="sm" onClick={addChannel}>
           <Plus size={12} /> Add Channel
+        </button>
+      </div>
+
+      {/* Quick Beat & Euclidean Pattern Generator Bar for Selected Channel */}
+      <div className="panel-header" style={{ height: 32, background: '#0B1020', gap: 5, overflowX: 'auto' }}>
+        <span style={{ fontSize: 11, color: '#94A3B8' }}>
+          Quick Fill ({selectedChannel?.name || 'Channel'}):
+        </span>
+        <button className="sm" onClick={() => applyQuickFill('4floor')}>4-on-Floor</button>
+        <button className="sm" onClick={() => applyQuickFill('2step')}>2-Step</button>
+        <button className="sm" onClick={() => applyQuickFill('offhat')}>Off-Beat</button>
+        <button className="sm" onClick={() => applyQuickFill('euclid5')}>Euclid 5/16</button>
+        <button className="sm" onClick={() => applyQuickFill('euclid7')}>Euclid 7/16</button>
+        <button className="sm" onClick={() => applyQuickFill('shiftL')} title="Rotate steps left">
+          <RotateCcw size={11} /> Shift L
+        </button>
+        <button className="sm" onClick={() => applyQuickFill('shiftR')} title="Rotate steps right">
+          <RotateCw size={11} /> Shift R
+        </button>
+        <button className="sm" onClick={() => applyQuickFill('randVel')} title="Humanize active step velocities">
+          <Shuffle size={11} /> Rand Vel
+        </button>
+        <button className="sm danger-outline" onClick={() => applyQuickFill('clear')}>Clear Row</button>
+        <div className="spacer" />
+        <button
+          className={graphOpen ? 'active sm' : 'sm'}
+          onClick={() => setGraphOpen((v) => !v)}
+          title="Open FL-style Per-Step Graph Editor (Velocity, Pitch, Pan, Probability)"
+        >
+          Graph Editor
         </button>
       </div>
 
@@ -220,9 +330,7 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
                   title="Click to audition, double-click to edit synth"
                 >
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</span>
-                  <span className="mono" style={{ fontSize: 9.5, color: '#64748B' }}>
-                    {ch.engine.slice(0, 3).toUpperCase()}
-                  </span>
+                  <span style={{ fontSize: 10, color: '#64748B' }}>{ch.engine.slice(0, 3)}</span>
                 </button>
 
                 <select
@@ -257,7 +365,6 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
                 </button>
               </div>
 
-              {/* Channel Volume Slider */}
               <div style={{ width: 58, flex: 'none' }} onClick={(e) => e.stopPropagation()}>
                 <input
                   type="range"
@@ -276,7 +383,6 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
                 />
               </div>
 
-              {/* Step Grid */}
               <div
                 className="rack-steps-grid"
                 style={{ gridTemplateColumns: `repeat(${Math.min(32, pattern.lengthSteps)}, minmax(16px, 1fr))` }}
@@ -338,7 +444,100 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
         })}
       </div>
 
-      {/* Per-Step Parameter Drawer (Velocity, Pitch, Pan, Ratchet, Probability) */}
+      {/* FL-Style Interactive Graph Editor */}
+      {graphOpen && selectedChannel && (
+        <div style={{ flex: 'none', background: '#0B1020', borderTop: '1px solid #24324D', padding: '8px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span className="panel-title" style={{ fontSize: 10.5 }}>
+              Graph Editor — {selectedChannel.name}
+            </span>
+            {(['velocity', 'pitch', 'pan', 'probability'] as const).map((gp) => (
+              <button
+                key={gp}
+                className={graphParam === gp ? 'active sm' : 'sm'}
+                onClick={() => setGraphParam(gp)}
+              >
+                {gp.charAt(0).toUpperCase() + gp.slice(1)}
+              </button>
+            ))}
+            <span style={{ fontSize: 10.5, color: '#64748B', marginLeft: 'auto' }}>
+              Click or drag across bars to sculpt per-step values
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(32, pattern.lengthSteps)}, 1fr)`, gap: 3, height: 74 }}>
+            {(pattern.steps[selectedChannel.id] || createEmptySteps(pattern.lengthSteps))
+              .slice(0, Math.min(32, pattern.lengthSteps))
+              .map((cell, idx) => {
+                const norm =
+                  graphParam === 'velocity'
+                    ? cell.velocity
+                    : graphParam === 'probability'
+                    ? cell.probability
+                    : graphParam === 'pitch'
+                    ? (cell.pitchOffset + 24) / 48
+                    : (cell.pan + 1) / 2;
+
+                const applyVal = (e: React.MouseEvent<HTMLDivElement>) => {
+                  if (e.buttons !== 1 && e.type === 'mousemove') return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const frac = 1 - Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+                  projectStore.update((s) => {
+                    const pat = s.patterns.find((p) => p.id === s.activePatternId);
+                    const c = pat?.steps[selectedChannel.id]?.[idx];
+                    if (!c) return;
+                    if (graphParam === 'velocity') c.velocity = Math.max(0.05, frac);
+                    else if (graphParam === 'probability') c.probability = Math.max(0.05, frac);
+                    else if (graphParam === 'pitch') c.pitchOffset = Math.round(frac * 48 - 24);
+                    else c.pan = Math.round((frac * 2 - 1) * 20) / 20;
+                  }, false);
+                };
+
+                return (
+                  <div
+                    key={idx}
+                    onMouseDown={applyVal}
+                    onMouseMove={applyVal}
+                    style={{
+                      background: '#080C18',
+                      border: '1px solid #1E2C49',
+                      borderRadius: 2,
+                      position: 'relative',
+                      cursor: 'ns-resize',
+                      opacity: cell.active ? 1 : 0.35,
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 1,
+                        right: 1,
+                        bottom: 1,
+                        height: `${Math.round(norm * 96)}%`,
+                        background: cell.active ? '#60A5FA' : '#334155',
+                      }}
+                    />
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Live 8-Pad Finger-Drumming Performance Deck */}
+      <div className="pad-grid">
+        {LIVE_DRUM_PADS.map((pad) => (
+          <button
+            key={pad.voice}
+            className={`drum-pad ${activePad === pad.voice ? 'hit' : ''}`}
+            onMouseDown={() => triggerPad(pad.voice)}
+          >
+            <span style={{ fontWeight: 600, fontSize: 11 }}>{pad.label}</span>
+            <span className="mono" style={{ fontSize: 9.5, opacity: 0.65 }}>{pad.voice.toUpperCase()}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Per-Step Parameter Drawer */}
       <div className="step-inspector">
         <span className="panel-title" style={{ fontSize: 10.5 }}>
           {inspectedCh && selectedStep

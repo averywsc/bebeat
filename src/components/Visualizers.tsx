@@ -105,7 +105,7 @@ export const TelemetryFooterBar: React.FC = () => {
             ctx.fillStyle = b.col;
             ctx.fillRect(x, 2 + (barMaxH - bh), bw, bh);
             ctx.fillStyle = '#94A3B8';
-            ctx.font = '8px JetBrains Mono, monospace';
+            ctx.font = '8px "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(b.label, x + bw / 2, h - 1);
           });
@@ -140,23 +140,23 @@ export const TelemetryFooterBar: React.FC = () => {
       <div className="tele-cell">
         <div className="tele-label">
           <span>Oscilloscope</span>
-          <span className="mono">{metrics.sab ? 'SAB LOCK-FREE' : 'WORKLET PORT'}</span>
+          <span className="mono">48 kHz</span>
         </div>
         <canvas ref={scopeRef} width={200} height={36} className="tele-canvas" />
       </div>
 
       <div className="tele-cell">
         <div className="tele-label">
-          <span>Spectrum FFT</span>
-          <span className="mono">64 BINS</span>
+          <span>Spectrum</span>
+          <span className="mono">64</span>
         </div>
         <canvas ref={specRef} width={200} height={36} className="tele-canvas" />
       </div>
 
       <div className="tele-cell">
         <div className="tele-label">
-          <span>Beat &amp; 4-Band Mod</span>
-          <span className="mono">PHASE {metrics.beatPhase.toFixed(2)}</span>
+          <span>Beat &amp; Band Mod</span>
+          <span className="mono">{metrics.beatPhase.toFixed(2)}</span>
         </div>
         <canvas ref={bandsRef} width={220} height={36} className="tele-canvas" />
       </div>

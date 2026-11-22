@@ -14,6 +14,8 @@ import { compileJsLiveCode } from '../src/livecode/jsRuntime';
 import { compilePythonEmbedded } from '../src/livecode/pythonRuntime';
 import { extractInlineCodePreviews } from '../src/livecode/astPreview';
 import { BUILTIN_CODE_PRESETS } from '../src/state/presets';
+import { EFFECT_CATALOG, INSTRUMENT_CATALOG, LOOP_STARTER_LIBRARY, THEME_PRESETS } from '../src/audio/catalog/plugins';
+import { detectPitchAutocorrelation } from '../src/audio/audioRecorder';
 
 test('noteToMidi & midiToNoteName roundtrip', () => {
   assert.equal(noteToMidi('C4'), 60);
@@ -67,4 +69,23 @@ test('All built-in JS and Python code presets compile cleanly with events & AST 
     const previews = extractInlineCodePreviews(preset.code);
     assert.ok(previews.length >= 1, `Preset "${preset.name}" should produce at least one inline preview`);
   }
+});
+
+test('Plugin Database catalogs, Loop Starters, Themes, and Chromatic Pitch Tuner work accurately', () => {
+  assert.ok(INSTRUMENT_CATALOG.length >= 30, `Expected >= 30 instruments, got ${INSTRUMENT_CATALOG.length}`);
+  assert.ok(EFFECT_CATALOG.length >= 75, `Expected >= 75 effects, got ${EFFECT_CATALOG.length}`);
+  assert.ok(LOOP_STARTER_LIBRARY.length >= 6);
+  assert.ok(THEME_PRESETS.length >= 4);
+
+  // Verify 440 Hz A4 sine wave detection in Chromatic Tuner
+  const sr = 48000;
+  const buf = new Float32Array(2048);
+  for (let i = 0; i < buf.length; i++) {
+    buf[i] = 0.6 * Math.sin((2 * Math.PI * 440 * i) / sr);
+  }
+  const reading = detectPitchAutocorrelation(buf, sr);
+  assert.ok(reading !== null);
+  assert.equal(reading.noteName, 'A4');
+  assert.equal(reading.midi, 69);
+  assert.ok(Math.abs(reading.cents) <= 4);
 });

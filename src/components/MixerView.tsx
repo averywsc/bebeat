@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, Power } from 'lucide-react';
 import type { FxType, ProjectState } from '../types/daw';
-import { createDefaultFxSlot, projectStore, uid } from '../state/projectStore';
+import { projectStore, uid } from '../state/projectStore';
+import { EFFECT_CATALOG } from '../audio/catalog/plugins';
 import { audioEngine } from '../audio/engine';
 
 interface MixerViewProps {
@@ -68,10 +69,12 @@ function volToDb(v: number): string {
 
 export const MixerView: React.FC<MixerViewProps> = ({ project }) => {
   const [peaks, setPeaks] = useState<Record<string, number>>({});
-  const [newFxType, setNewFxType] = useState<FxType>('reverb');
+  const [newPluginId, setNewPluginId] = useState<string>(EFFECT_CATALOG[0].id);
 
   const selectedTrack =
     project.mixerTracks.find((t) => t.id === project.selectedMixerTrackId) || project.mixerTracks[0];
+
+  const categories = Array.from(new Set(EFFECT_CATALOG.map((e) => e.category)));
 
   useEffect(() => {
     let raf = 0;
@@ -294,23 +297,37 @@ export const MixerView: React.FC<MixerViewProps> = ({ project }) => {
           <div style={{ padding: '8px 10px', borderBottom: '1px solid #24324D', display: 'flex', gap: 6 }}>
             <select
               style={{ flex: 1 }}
-              value={newFxType}
-              onChange={(e) => setNewFxType(e.target.value as FxType)}
+              value={newPluginId}
+              onChange={(e) => setNewPluginId(e.target.value)}
             >
-              {(Object.keys(FX_LABELS) as FxType[]).map((ft) => (
-                <option key={ft} value={ft}>
-                  {FX_LABELS[ft]}
-                </option>
+              {categories.map((cat) => (
+                <optgroup key={cat} label={cat}>
+                  {EFFECT_CATALOG.filter((e) => e.category === cat).map((fx) => (
+                    <option key={fx.id} value={fx.id}>
+                      {fx.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <button
               className="sm"
-              onClick={() =>
+              onClick={() => {
+                const plugin = EFFECT_CATALOG.find((e) => e.id === newPluginId) || EFFECT_CATALOG[0];
                 projectStore.update((s) => {
                   const m = s.mixerTracks.find((x) => x.id === selectedTrack.id);
-                  if (m) m.fx.push(createDefaultFxSlot(newFxType));
-                })
-              }
+                  if (m) {
+                    m.fx.push({
+                      id: uid('fx'),
+                      type: plugin.dspEngine,
+                      pluginId: plugin.id,
+                      pluginName: plugin.name,
+                      enabled: true,
+                      params: { ...plugin.defaultParams },
+                    });
+                  }
+                });
+              }}
             >
               <Plus size={12} /> Insert
             </button>
@@ -319,14 +336,14 @@ export const MixerView: React.FC<MixerViewProps> = ({ project }) => {
           <div className="panel-scroll">
             {selectedTrack.fx.length === 0 ? (
               <div style={{ color: '#64748B', fontSize: 11.5, padding: 8 }}>
-                No FX slots on {selectedTrack.name}. Choose an effect above and click Insert.
+                No FX slots on {selectedTrack.name}. Choose from {EFFECT_CATALOG.length} studio plugins above and click Insert.
               </div>
             ) : (
               selectedTrack.fx.map((slot) => (
                 <div key={slot.id} className="fx-card">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <span style={{ fontWeight: 700, fontSize: 11.5, color: slot.enabled ? '#FFFFFF' : '#64748B' }}>
-                      {FX_LABELS[slot.type]}
+                      {slot.pluginName || FX_LABELS[slot.type]}
                     </span>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button

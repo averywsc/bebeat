@@ -63,6 +63,16 @@ export class BebeatAudioEngine {
   private pendingLiveProgram: { program: LiveCodeCompiledProgram; quantize: 'beat' | 'bar' | 'immediate' } | null = null;
   private liveCodeActive = false;
 
+  // Context-aware playback scope ('all' plays everything; 'solo-channel' plays only selected piano/instrument part; 'live-code-only' plays only live code)
+  private playbackScope: 'all' | 'solo-channel' | 'pattern-only' | 'song-only' | 'live-code-only' = 'all';
+  private activeSoloChannelId: string | null = null;
+
+  // Live recording state (tracks held keys -> writes duration on keyup)
+  private heldRecNotes = new Map<string, { channelId: string; midi: number; startBeat: number; velocity: number }>();
+  private stepEntryBeatCursor = 0;
+  private activePressedMidi = new Set<number>();
+  private pressedListeners = new Set<(notes: Set<number>) => void>();
+
   // Kick envelope follower state
   private kickEnv = 0;
   private lastKickTriggerMs = 0;
@@ -202,7 +212,7 @@ export class BebeatAudioEngine {
     // Initialize Web MIDI hardware support
     this.midiDevices = await this.midiManager.init({
       onNoteOn: (midi, vel) => this.handleMidiNoteOn(midi, vel),
-      onNoteOff: () => {},
+      onNoteOff: (midi) => this.handleMidiNoteOff(midi),
       onControlChange: (cc, norm, ch) => this.handleMidiCc(cc, norm, ch),
       onDevicesChanged: (devs) => {
         this.midiDevices = devs;
@@ -269,6 +279,39 @@ export class BebeatAudioEngine {
 
   getKitBuffer(key: string): AudioBuffer | undefined {
     return this.kitBuffers.get(key) || this.customAudioClips.get(key);
+  }
+
+  getAudioContext(): AudioContext | null {
+    return this.ctx;
+  }
+
+  registerAudioBuffer(key: string, buffer: AudioBuffer): void {
+    this.kitBuffers.set(key, buffer);
+    this.customAudioClips.set(key, buffer);
+  }
+
+  listAllLoadedBuffers(): Array<{ key: string; durationSec: number; sampleRate: number }> {
+    const out: Array<{ key: string; durationSec: number; sampleRate: number }> = [];
+    const seen = new Set<string>();
+    for (const [key, buf] of this.customAudioClips.entries()) {
+      seen.add(key);
+      out.push({ key, durationSec: buf.duration, sampleRate: buf.sampleRate });
+    }
+    for (const [key, buf] of this.kitBuffers.entries()) {
+      if (seen.has(key)) continue;
+      out.push({ key, durationSec: buf.duration, sampleRate: buf.sampleRate });
+    }
+    return out;
+  }
+
+  async playBufferOnce(buffer: AudioBuffer, playbackRate = 1.0, startSec = 0, durationSec?: number): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.ctx || !this.previewBus) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = Math.max(0.25, Math.min(4, playbackRate));
+    src.connect(this.previewBus);
+    src.start(this.ctx.currentTime + 0.01, Math.max(0, startSec), durationSec);
   }
 
   private rebuildMixerGraph(state: ProjectState): void {
@@ -348,22 +391,136 @@ export class BebeatAudioEngine {
     });
   }
 
-  async play(): Promise<void> {
+  async play(opts?: {
+    scope?: 'all' | 'solo-channel' | 'pattern-only' | 'song-only' | 'live-code-only';
+    soloChannelId?: string | null;
+  }): Promise<void> {
     await this.ensureInitialized();
     const state = projectStore.getState();
+    this.playbackScope = opts?.scope ?? 'all';
+    this.activeSoloChannelId = opts?.soloChannelId ?? null;
     this.syncClockParams(state);
     this.telemetry.playing = true;
     this.clockNode?.port.postMessage({ type: 'start' });
   }
 
+  async playAll(): Promise<void> {
+    await this.play({ scope: 'all', soloChannelId: null });
+  }
+
+  getPlaybackScope() {
+    return { scope: this.playbackScope, soloChannelId: this.activeSoloChannelId };
+  }
+
   stop(reset = false): void {
     this.telemetry.playing = false;
+    this.heldRecNotes.clear();
     this.clockNode?.port.postMessage({ type: 'stop', reset });
     if (reset) {
       this.telemetry.beatPosition = 0;
       this.telemetry.beatPhase = 0;
       this.telemetry.barPhase = 0;
     }
+  }
+
+  subscribePressedNotes(fn: (notes: Set<number>) => void): () => void {
+    this.pressedListeners.add(fn);
+    return () => this.pressedListeners.delete(fn);
+  }
+
+  private emitPressedNotes(): void {
+    const snap = new Set(this.activePressedMidi);
+    this.pressedListeners.forEach((fn) => fn(snap));
+  }
+
+  /** Play note live from PC keyboard, onscreen piano, or MIDI keyboard; records into Piano Roll when Record or Step Entry is active */
+  async noteOnLive(channelId: string, midi: number, velocity = 0.85): Promise<void> {
+    this.activePressedMidi.add(midi);
+    this.emitPressedNotes();
+    await this.auditionChannelNote(channelId, midi, velocity, 0.4);
+
+    const state = projectStore.getState();
+    const pat = state.patterns.find((p) => p.id === state.activePatternId);
+    const ch = state.channels.find((c) => c.id === channelId);
+    if (!pat || !ch) return;
+    const patBeats = pat.lengthSteps / 4;
+
+    // Note Step Entry mode: stamps note at cursor and advances by 0.5 beat even while stopped
+    if (state.stepEntryMode && !this.telemetry.playing) {
+      const at = this.stepEntryBeatCursor % patBeats;
+      projectStore.update((s) => {
+        const p = s.patterns.find((x) => x.id === s.activePatternId);
+        if (!p) return;
+        if (!p.notes[channelId]) p.notes[channelId] = [];
+        p.notes[channelId].push({
+          id: uid('step'),
+          midi,
+          startBeat: at,
+          duration: 0.5,
+          velocity,
+          pan: 0,
+        });
+      });
+      this.stepEntryBeatCursor = (at + 0.5) % patBeats;
+      return;
+    }
+
+    const t = this.readTelemetry();
+    if (!state.recording || !t.playing) return;
+
+    let localBeat = ((t.beatPosition % patBeats) + patBeats) % patBeats;
+    if (state.recordQuantize) {
+      localBeat = Math.round(localBeat * 4) / 4;
+      if (localBeat >= patBeats) localBeat = 0;
+    }
+
+    if (ch.engine === 'DrumSynth') {
+      const stepIdx = Math.floor(localBeat * 4) % pat.lengthSteps;
+      projectStore.update((s) => {
+        const p = s.patterns.find((x) => x.id === s.activePatternId);
+        if (p?.steps[channelId]?.[stepIdx]) {
+          p.steps[channelId][stepIdx].active = true;
+          p.steps[channelId][stepIdx].velocity = velocity;
+        }
+      });
+    } else {
+      const key = `${channelId}:${midi}`;
+      this.heldRecNotes.set(key, { channelId, midi, startBeat: localBeat, velocity });
+    }
+  }
+
+  noteOffLive(channelId: string, midi: number): void {
+    this.activePressedMidi.delete(midi);
+    this.emitPressedNotes();
+
+    const key = `${channelId}:${midi}`;
+    const held = this.heldRecNotes.get(key);
+    if (!held) return;
+    this.heldRecNotes.delete(key);
+
+    const state = projectStore.getState();
+    const pat = state.patterns.find((p) => p.id === state.activePatternId);
+    if (!pat) return;
+    const patBeats = pat.lengthSteps / 4;
+    const t = this.readTelemetry();
+    const nowBeat = ((t.beatPosition % patBeats) + patBeats) % patBeats;
+    let rawDur = nowBeat >= held.startBeat ? nowBeat - held.startBeat : patBeats - held.startBeat + nowBeat;
+    if (rawDur < 0.125 || rawDur > patBeats) rawDur = 0.25;
+    const finalDur = state.recordQuantize ? Math.max(0.25, Math.round(rawDur * 4) / 4) : Math.max(0.125, rawDur);
+
+    projectStore.update((s) => {
+      const p = s.patterns.find((x) => x.id === s.activePatternId);
+      if (!p) return;
+      if (!p.notes[channelId]) p.notes[channelId] = [];
+      p.notes[channelId].push({
+        id: uid('rec'),
+        midi: held.midi,
+        startBeat: held.startBeat,
+        duration: Math.min(patBeats - held.startBeat, finalDur),
+        velocity: held.velocity,
+        pan: 0,
+      });
+    });
   }
 
   seekBeat(beat: number): void {
@@ -591,30 +748,45 @@ export class BebeatAudioEngine {
         this.triggerMetronome(ev.audioTime, ev.beatInBar === 0);
       }
 
+      const scope = this.playbackScope;
+      const runPatternOrSong = scope !== 'live-code-only';
+      const useSongMode =
+        scope === 'song-only' || (scope === 'all' && state.playbackMode === 'song');
+
       // Schedule active Pattern or Song Playlist clips
-      if (state.playbackMode === 'pattern') {
-        const pat = state.patterns.find((p) => p.id === state.activePatternId);
-        if (pat) {
-          const patBeats = pat.lengthSteps / 4;
-          const localBeat = ((ev.beat % patBeats) + patBeats) % patBeats;
-          this.schedulePatternSlice(state, pat, localBeat, ev.audioTime, secPerBeat, frame);
-        }
-      } else {
-        for (const clip of state.playlistClips) {
-          if (clip.muted) continue;
-          if (ev.beat >= clip.startBeat - 0.001 && ev.beat < clip.startBeat + clip.durationBeats - 0.001) {
-            if (clip.kind === 'pattern' && clip.patternId) {
-              const pat = state.patterns.find((p) => p.id === clip.patternId);
-              if (pat) {
-                const patBeats = pat.lengthSteps / 4;
-                const localBeat = ((ev.beat - clip.startBeat + clip.offsetBeats) % patBeats + patBeats) % patBeats;
-                this.schedulePatternSlice(state, pat, localBeat, ev.audioTime, secPerBeat, frame);
-              }
-            } else if (clip.kind === 'audio' && clip.audioBufferId && Math.abs(ev.beat - clip.startBeat) < 0.01) {
-              const buf = this.customAudioClips.get(clip.audioBufferId);
-              const master = this.trackNodes.get('mx_master');
-              if (buf && master && this.ctx) {
-                triggerSampleBuffer(this.ctx, master.input, buf, { time: ev.audioTime, velocity: 0.9 });
+      if (runPatternOrSong) {
+        if (!useSongMode) {
+          const pat = state.patterns.find((p) => p.id === state.activePatternId);
+          if (pat) {
+            const patBeats = pat.lengthSteps / 4;
+            const localBeat = ((ev.beat % patBeats) + patBeats) % patBeats;
+            this.schedulePatternSlice(
+              state,
+              pat,
+              localBeat,
+              ev.audioTime,
+              secPerBeat,
+              frame,
+              scope === 'solo-channel' ? this.activeSoloChannelId : null
+            );
+          }
+        } else {
+          for (const clip of state.playlistClips) {
+            if (clip.muted) continue;
+            if (ev.beat >= clip.startBeat - 0.001 && ev.beat < clip.startBeat + clip.durationBeats - 0.001) {
+              if (clip.kind === 'pattern' && clip.patternId) {
+                const pat = state.patterns.find((p) => p.id === clip.patternId);
+                if (pat) {
+                  const patBeats = pat.lengthSteps / 4;
+                  const localBeat = ((ev.beat - clip.startBeat + clip.offsetBeats) % patBeats + patBeats) % patBeats;
+                  this.schedulePatternSlice(state, pat, localBeat, ev.audioTime, secPerBeat, frame, null);
+                }
+              } else if (clip.kind === 'audio' && clip.audioBufferId && Math.abs(ev.beat - clip.startBeat) < 0.01) {
+                const buf = this.customAudioClips.get(clip.audioBufferId);
+                const master = this.trackNodes.get('mx_master');
+                if (buf && master && this.ctx) {
+                  triggerSampleBuffer(this.ctx, master.input, buf, { time: ev.audioTime, velocity: 0.9 });
+                }
               }
             }
           }
@@ -622,7 +794,13 @@ export class BebeatAudioEngine {
       }
 
       // Schedule Live Code events inside this 16th-note window [ev.beat, ev.beat + 0.25)
-      if (this.liveCodeActive && this.activeLiveProgram && this.activeLiveProgram.ok) {
+      const runLiveCode =
+        (scope === 'all' || scope === 'live-code-only') &&
+        this.liveCodeActive &&
+        this.activeLiveProgram &&
+        this.activeLiveProgram.ok;
+
+      if (runLiveCode && this.activeLiveProgram) {
         const prog = this.activeLiveProgram;
         const loopBeats = Math.max(4, prog.loopBars * 4);
         const wStart = ((ev.beat % loopBeats) + loopBeats) % loopBeats;
@@ -643,13 +821,18 @@ export class BebeatAudioEngine {
     localBeat: number,
     audioTime: number,
     secPerBeat: number,
-    telemetry: TelemetryFrame
+    telemetry: TelemetryFrame,
+    onlyChannelId: string | null = null
   ): void {
     const stepIdx = Math.floor(localBeat * 4 + 0.001) % pat.lengthSteps;
     const anyChSolo = state.channels.some((c) => c.solo);
 
     for (const ch of state.channels) {
-      if (ch.mute || (anyChSolo && !ch.solo)) continue;
+      if (onlyChannelId) {
+        if (ch.id !== onlyChannelId) continue;
+      } else if (ch.mute || (anyChSolo && !ch.solo)) {
+        continue;
+      }
 
       // 1. Step Sequencer cells
       const steps = pat.steps[ch.id];
@@ -817,6 +1000,21 @@ export class BebeatAudioEngine {
     const dest = destOverride || (this.trackNodes.get(ch.mixerTrackId) || this.trackNodes.get('mx_master'))?.input;
     if (!dest) return;
 
+    const state = projectStore.getState();
+    const globalPitch = state.masterPitchSemi || 0;
+    const pitchedMidi = ch.engine === 'DrumSynth' ? midi : Math.max(0, Math.min(127, midi + globalPitch));
+
+    // If channel is a Layer meta-generator, trigger its child channels simultaneously
+    if (ch.pluginId === 'layer' && ch.layerChildIds && ch.layerChildIds.length > 0) {
+      for (const childId of ch.layerChildIds) {
+        const child = state.channels.find((c) => c.id === childId && c.id !== ch.id);
+        if (child) {
+          this.triggerChannel(child, modRoutes, telemetry, time, durationSec, velocity, midi, pan, destOverride, slideFromMidi);
+        }
+      }
+      return;
+    }
+
     const tNow = this.ctx.currentTime;
     const modGain = evaluateModulatedParam(modRoutes, 'channel', ch.id, 'gain', ch.volume, telemetry, tNow);
     const modPan = evaluateModulatedParam(modRoutes, 'channel', ch.id, 'pan', ch.pan + pan, telemetry, tNow);
@@ -834,14 +1032,14 @@ export class BebeatAudioEngine {
         triggerSampleBuffer(this.ctx, dest, buf, {
           time,
           velocity: vel,
-          pitchSemi: ch.drumSynth.tuneSemi + (midi - 60),
+          pitchSemi: ch.drumSynth.tuneSemi + (pitchedMidi - 60),
           pan: finalPan,
         });
       } else {
         triggerSynthesizedDrum(this.ctx, dest, ch.drumSynth.voice, ch.drumSynth, {
           time,
           velocity: vel,
-          pitchSemi: midi - 60,
+          pitchSemi: pitchedMidi - 60,
           pan: finalPan,
         });
       }
@@ -849,20 +1047,20 @@ export class BebeatAudioEngine {
       const cutoff = evaluateModulatedParam(modRoutes, 'channel', ch.id, 'cutoff', ch.subSynth.cutoff, telemetry, tNow);
       const detune = evaluateModulatedParam(modRoutes, 'channel', ch.id, 'detune', 0, telemetry, tNow);
       triggerSubSynthNote(this.ctx, dest, ch.subSynth, {
-        midi,
+        midi: pitchedMidi,
         time,
         duration: durationSec,
         velocity: vel,
         pan: finalPan,
         cutoffOverride: cutoff,
         detuneOffset: detune,
-        slideFromMidi,
+        slideFromMidi: slideFromMidi !== undefined ? slideFromMidi + globalPitch : undefined,
       });
     } else if (ch.engine === 'FMSynth') {
       const cutoff = evaluateModulatedParam(modRoutes, 'channel', ch.id, 'cutoff', ch.fmSynth.cutoff, telemetry, tNow);
       const fmIndex = evaluateModulatedParam(modRoutes, 'channel', ch.id, 'fmIndex', ch.fmSynth.modIndex, telemetry, tNow);
       triggerFmSynthNote(this.ctx, dest, ch.fmSynth, {
-        midi,
+        midi: pitchedMidi,
         time,
         duration: durationSec,
         velocity: vel,
@@ -875,7 +1073,7 @@ export class BebeatAudioEngine {
       this.sf2Player.triggerNote(this.ctx, dest, {
         fontId: ch.soundFont.sf2Name,
         presetIndex: ch.soundFont.presetIndex,
-        midi,
+        midi: pitchedMidi,
         time,
         duration: durationSec,
         velocity: vel,
@@ -889,7 +1087,7 @@ export class BebeatAudioEngine {
         triggerSampleBuffer(this.ctx, dest, buf, {
           time,
           velocity: vel,
-          pitchSemi: midi - ch.sampler.rootMidi,
+          pitchSemi: pitchedMidi - ch.sampler.rootMidi,
           pan: finalPan,
           cutoff: ch.sampler.cutoff,
           startNorm: ch.sampler.startNorm,
@@ -1044,7 +1242,12 @@ export class BebeatAudioEngine {
 
   private handleMidiNoteOn(midi: number, velocity: number): void {
     const state = projectStore.getState();
-    void this.auditionChannelNote(state.selectedChannelId, midi, velocity, 0.35);
+    void this.noteOnLive(state.selectedChannelId, midi, velocity);
+  }
+
+  private handleMidiNoteOff(midi: number): void {
+    const state = projectStore.getState();
+    this.noteOffLive(state.selectedChannelId, midi);
   }
 
   private handleMidiCc(cc: number, valueNorm: number, channel: number): void {

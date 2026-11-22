@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Magnet, Scissors, Plus, Trash2, VolumeX } from 'lucide-react';
+import { Magnet, Scissors, Plus, Trash2, VolumeX, Copy, Sparkles, Upload, Lock, Unlock } from 'lucide-react';
 import type { ProjectState } from '../types/daw';
 import { projectStore, uid } from '../state/projectStore';
 import { audioEngine } from '../audio/engine';
@@ -34,9 +34,18 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ project }) => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
-      if (e.key === 'n' || e.key === 'N') setSnapEnabled((v) => !v);
-      else if (e.key === 'b' || e.key === 'B') setTool((t) => (t === 'razor' ? 'select' : 'razor'));
-      else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipId) {
+      const allowLetter = !project.typingKeyboardEnabled || e.altKey;
+      if ((e.key === 'n' || e.key === 'N') && allowLetter) setSnapEnabled((v) => !v);
+      else if ((e.key === 'b' || e.key === 'B') && allowLetter) setTool((t) => (t === 'razor' ? 'select' : 'razor'));
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedClipId) {
+        e.preventDefault();
+        projectStore.update((s) => {
+          const orig = s.playlistClips.find((c) => c.id === selectedClipId);
+          if (!orig) return;
+          const dup = { ...orig, id: uid('clip'), startBeat: orig.startBeat + orig.durationBeats };
+          s.playlistClips.push(dup);
+        });
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipId) {
         projectStore.update((s) => {
           s.playlistClips = s.playlistClips.filter((c) => c.id !== selectedClipId);
         });
@@ -45,7 +54,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ project }) => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedClipId]);
+  }, [selectedClipId, project.typingKeyboardEnabled]);
 
   useEffect(() => {
     let raf = 0;
@@ -122,6 +131,8 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ project }) => {
   };
 
   const handleTrackDoubleClick = (trackIndex: number, e: React.MouseEvent<HTMLDivElement>) => {
+    const trackMeta = project.playlistTracks?.[trackIndex];
+    if (trackMeta?.locked) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const rawBeat = (e.clientX - rect.left) / PX_PER_BEAT;
     const { beat } = applyMagneticSnap(rawBeat);
@@ -217,6 +228,72 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ project }) => {
         <button
           className="sm"
           onClick={() => {
+            const p1 = project.patterns[0];
+            const p2 = project.patterns[1] || p1;
+            if (!p1) return;
+            projectStore.update((s) => {
+              s.playlistClips = [
+                { id: uid('clip'), trackIndex: 0, kind: 'pattern', patternId: p1.id, label: p1.name, startBeat: 0, durationBeats: 4, offsetBeats: 0, muted: false },
+                { id: uid('clip'), trackIndex: 0, kind: 'pattern', patternId: p1.id, label: p1.name, startBeat: 4, durationBeats: 4, offsetBeats: 0, muted: false },
+                { id: uid('clip'), trackIndex: 0, kind: 'pattern', patternId: p2.id, label: p2.name, startBeat: 8, durationBeats: 4, offsetBeats: 0, muted: false },
+                { id: uid('clip'), trackIndex: 0, kind: 'pattern', patternId: p1.id, label: p1.name, startBeat: 12, durationBeats: 4, offsetBeats: 0, muted: false },
+                { id: uid('clip'), trackIndex: 0, kind: 'pattern', patternId: p1.id, label: p1.name, startBeat: 16, durationBeats: 4, offsetBeats: 0, muted: false },
+                { id: uid('clip'), trackIndex: 0, kind: 'pattern', patternId: p2.id, label: p2.name, startBeat: 20, durationBeats: 4, offsetBeats: 0, muted: false },
+                { id: uid('clip'), trackIndex: 0, kind: 'pattern', patternId: p1.id, label: p1.name, startBeat: 24, durationBeats: 4, offsetBeats: 0, muted: false },
+                { id: uid('clip'), trackIndex: 0, kind: 'pattern', patternId: p2.id, label: p2.name, startBeat: 28, durationBeats: 4, offsetBeats: 0, muted: false },
+              ];
+              s.loopStartBeat = 0;
+              s.loopEndBeat = 32;
+            });
+          }}
+          title="Auto-build an 8-bar arrangement from your patterns"
+        >
+          <Sparkles size={12} /> Auto-Arrange 8 Bars
+        </button>
+
+        <button
+          className="sm"
+          onClick={async () => {
+            const importAudio = async (name: string, bytes: Uint8Array) => {
+              const key = await audioEngine.loadCustomSample(name, bytes);
+              const buf = audioEngine.getKitBuffer(key);
+              const beats = buf ? Math.max(1, Math.round((buf.duration * project.bpm) / 60)) : 4;
+              projectStore.update((s) => {
+                s.playlistClips.push({
+                  id: uid('clip'),
+                  trackIndex: 2,
+                  kind: 'audio',
+                  audioBufferId: key,
+                  label: name,
+                  startBeat: 0,
+                  durationBeats: beats,
+                  offsetBeats: 0,
+                  muted: false,
+                });
+              });
+            };
+            if (window.bebeat?.pickAudioOrSf2) {
+              const picked = await window.bebeat.pickAudioOrSf2();
+              if (picked) await importAudio(picked.name, picked.bytes);
+              return;
+            }
+            const inp = document.createElement('input');
+            inp.type = 'file';
+            inp.accept = '.wav,.flac,.mp3,.ogg';
+            inp.onchange = async () => {
+              const f = inp.files?.[0];
+              if (f) await importAudio(f.name, new Uint8Array(await f.arrayBuffer()));
+            };
+            inp.click();
+          }}
+          title="Import .wav / .flac / .mp3 Audio Clip onto Playlist"
+        >
+          <Upload size={12} /> Audio Clip
+        </button>
+
+        <button
+          className="sm"
+          onClick={() => {
             const pat = project.patterns.find((p) => p.id === project.activePatternId) || project.patterns[0];
             if (!pat) return;
             const endMax = project.playlistClips.reduce((m, c) => Math.max(m, c.startBeat + c.durationBeats), 0);
@@ -239,6 +316,19 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ project }) => {
         </button>
         {selectedClipId && (
           <>
+            <button
+              className="sm"
+              onClick={() =>
+                projectStore.update((s) => {
+                  const orig = s.playlistClips.find((c) => c.id === selectedClipId);
+                  if (!orig) return;
+                  s.playlistClips.push({ ...orig, id: uid('clip'), startBeat: orig.startBeat + orig.durationBeats });
+                })
+              }
+              title="Duplicate Selected Clip (Ctrl+D)"
+            >
+              <Copy size={12} /> Duplicate
+            </button>
             <button
               className="sm"
               onClick={() =>
@@ -282,24 +372,52 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ project }) => {
             >
               BARS / LOOP
             </div>
-            {Array.from({ length: TRACK_COUNT }, (_, ti) => (
-              <div
-                key={ti}
-                style={{
-                  height: TRACK_H,
-                  borderBottom: '1px solid #1C2740',
-                  padding: '8px 10px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                }}
-              >
-                <div style={{ fontWeight: 600, color: '#F8FAFC', fontSize: 11.5 }}>Track {ti + 1}</div>
-                <div style={{ fontSize: 10, color: '#64748B' }}>
-                  {ti === 0 ? 'Main Patterns' : ti === 1 ? 'Baked Patterns' : ti === 2 ? 'Audio / Stems' : 'Arrangement'}
+            {Array.from({ length: TRACK_COUNT }, (_, ti) => {
+              const meta = project.playlistTracks?.[ti] || {
+                index: ti,
+                name: `Track ${ti + 1}`,
+                kind: ti === 0 ? 'drummer' : ti === 2 ? 'audio' : ti === 5 ? 'master' : 'software',
+                locked: false,
+                muted: false,
+                solo: false,
+              };
+              return (
+                <div
+                  key={ti}
+                  style={{
+                    height: TRACK_H,
+                    borderBottom: '1px solid #1C2740',
+                    padding: '6px 8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                    <span style={{ fontWeight: 600, color: '#F8FAFC', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {meta.name}
+                    </span>
+                    <button
+                      className={meta.locked ? 'active sm icon-only' : 'sm icon-only'}
+                      style={{ padding: '1px 4px' }}
+                      onClick={() =>
+                        projectStore.update((s) => {
+                          const t = s.playlistTracks?.find((x) => x.index === ti);
+                          if (t) t.locked = !t.locked;
+                        })
+                      }
+                      title={meta.locked ? 'Unlock Track' : 'Lock Track'}
+                    >
+                      {meta.locked ? <Lock size={10} /> : <Unlock size={10} />}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 9.5, color: '#64748B' }}>
+                    <span style={{ textTransform: 'uppercase' }}>{meta.kind}</span>
+                    {meta.locked && <span style={{ color: '#FBBF24' }}>LOCKED</span>}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {autoLane && (
               <div
                 style={{
@@ -403,11 +521,40 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ project }) => {
                         key={clip.id}
                         onMouseDown={(e) => {
                           e.stopPropagation();
-                          if (tool === 'razor') {
+                          const trackMeta = project.playlistTracks?.[ti];
+                          if (trackMeta?.locked) return;
+                          const effTool = tool === 'razor' ? 'slice' : project.activeTool;
+
+                          if (effTool === 'delete') {
+                            projectStore.update((s) => {
+                              s.playlistClips = s.playlistClips.filter((c) => c.id !== clip.id);
+                            });
+                            return;
+                          }
+                          if (effTool === 'mute') {
+                            projectStore.update((s) => {
+                              const c = s.playlistClips.find((x) => x.id === clip.id);
+                              if (c) c.muted = !c.muted;
+                            });
+                            return;
+                          }
+                          if (effTool === 'playback') {
+                            const rect = e.currentTarget.parentElement!.getBoundingClientRect();
+                            audioEngine.seekBeat(Math.max(0, (e.clientX - rect.left) / PX_PER_BEAT));
+                            return;
+                          }
+                          if (effTool === 'slice') {
                             const rect = e.currentTarget.parentElement!.getBoundingClientRect();
                             const rawB = (e.clientX - rect.left) / PX_PER_BEAT;
                             const { beat } = applyMagneticSnap(rawB, clip.id);
                             splitClipAt(clip.id, beat);
+                            return;
+                          }
+                          if (effTool === 'slip') {
+                            projectStore.update((s) => {
+                              const c = s.playlistClips.find((x) => x.id === clip.id);
+                              if (c) c.offsetBeats = (c.offsetBeats + 0.5) % Math.max(1, c.durationBeats);
+                            });
                             return;
                           }
                           setSelectedClipId(clip.id);

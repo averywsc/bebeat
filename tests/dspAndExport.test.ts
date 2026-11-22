@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { applyTruePeakCeiling, encodeWavBuffer } from '../src/audio/offlineRenderer';
 import { parseSoundFont2 } from '../src/audio/dsp/sf2Player';
 import { exportNotesToSmf, importSmfToNotes } from '../src/audio/midiCodec';
+import { RETRO_VOICE_PRESETS, synthesizeRetroSpeechPcm } from '../src/audio/dsp/retroSpeech';
 
 test('Lossless WAV encoder outputs valid 32f, 24-bit, and 16-bit headers with TPDF/shaped dither & True Peak ceiling', () => {
   const sr = 48000;
@@ -85,4 +86,24 @@ def arp(bar):
   assert.equal(parsed.bars, 2);
   const leadCh = parsed.channels.find((c: { name: string }) => c.name === 'lead');
   assert.ok(leadCh && leadCh.events.length === 8);
+});
+
+test('Retro Text-to-Speech formant synthesizer generates normalized non-silent PCM across voices', () => {
+  assert.ok(RETRO_VOICE_PRESETS.length >= 8);
+  for (const voiceId of ['sam_82', 'fl_robot', 'cyber_vocoder', 'whisper_ghost', 'giant_bot'] as const) {
+    const { samples, sampleRate } = synthesizeRetroSpeechPcm({
+      text: 'Bebeat drop the bass 1 2 3',
+      voiceId,
+      sampleRate: 48000,
+    });
+    assert.equal(sampleRate, 48000);
+    assert.ok(samples.length > 24000, `Expected >0.5s audio for ${voiceId}`);
+    let maxAbs = 0;
+    for (let i = 0; i < samples.length; i++) {
+      assert.ok(Number.isFinite(samples[i]));
+      const a = Math.abs(samples[i]);
+      if (a > maxAbs) maxAbs = a;
+    }
+    assert.ok(maxAbs > 0.5 && maxAbs <= 0.96, `Expected normalized peak for ${voiceId}, got ${maxAbs}`);
+  }
 });

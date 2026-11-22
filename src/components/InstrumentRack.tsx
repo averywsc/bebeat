@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Upload, Activity, Sliders } from 'lucide-react';
+import { Plus, Trash2, Upload, Activity, Sliders, Dices } from 'lucide-react';
 import type {
   DrumVoiceName,
   FilterMode,
@@ -13,13 +13,13 @@ import { projectStore, uid } from '../state/projectStore';
 import { FM_SYNTH_PRESETS, SUB_SYNTH_PRESETS } from '../state/presets';
 import { MOD_PARAM_RANGES, MOD_SOURCE_LABELS, sampleModSource } from '../audio/dsp/modulation';
 import { audioEngine } from '../audio/engine';
-import { midiToNoteName } from '../livecode/musicTheory';
+import { SEMITONE_TO_KEY_LABEL, midiToNoteName } from '../livecode/musicTheory';
 
 interface InstrumentRackProps {
   project: ProjectState;
 }
 
-const KEYBOARD_NOTES = Array.from({ length: 25 }, (_, i) => 48 + i); // C3..C5
+const KEYBOARD_SEMIS = Array.from({ length: 29 }, (_, i) => i);
 const DRUM_VOICES: DrumVoiceName[] = ['bd', 'sn', 'cp', 'hh', 'oh', 'rim', 'lt', 'perc'];
 
 export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
@@ -27,8 +27,14 @@ export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
   const [newModSrc, setNewModSrc] = useState<ModSourceId>('bands.sub');
   const [newModParam, setNewModParam] = useState<ModTargetParam>('cutoff');
   const [midiLearnActive, setMidiLearnActive] = useState<string | null>(null);
+  const [pressedNotes, setPressedNotes] = useState<Set<number>>(new Set());
 
   const channel = project.channels.find((c) => c.id === project.selectedChannelId) || project.channels[0];
+  const baseTypingMidi = (project.typingOctave + 1) * 12;
+
+  useEffect(() => {
+    return audioEngine.subscribePressedNotes(setPressedNotes);
+  }, []);
 
   useEffect(() => {
     let raf = 0;
@@ -183,6 +189,35 @@ export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
           )}
 
           <div className="spacer" />
+          {(channel.engine === 'SubSynth' || channel.engine === 'FMSynth') && (
+            <button
+              className="sm"
+              onClick={() => {
+                updateCh((c) => {
+                  if (c.engine === 'SubSynth') {
+                    const waves: OscWaveform[] = ['sine', 'triangle', 'sawtooth', 'square', 'wavetable'];
+                    c.subSynth.presetName = 'Randomized Patch';
+                    c.subSynth.osc1Wave = waves[Math.floor(Math.random() * waves.length)];
+                    c.subSynth.osc2Wave = waves[Math.floor(Math.random() * waves.length)];
+                    c.subSynth.oscMix = Math.round(Math.random() * 100) / 100;
+                    c.subSynth.cutoff = Math.round(220 + Math.random() * 5800);
+                    c.subSynth.resonance = Math.round((0.8 + Math.random() * 9) * 10) / 10;
+                    c.subSynth.unisonVoices = 1 + Math.floor(Math.random() * 4);
+                    c.subSynth.drive = Math.round(Math.random() * 60) / 100;
+                  } else if (c.engine === 'FMSynth') {
+                    c.fmSynth.presetName = 'Randomized FM';
+                    c.fmSynth.algorithm = Math.floor(Math.random() * 6) as 0 | 1 | 2 | 3 | 4 | 5;
+                    c.fmSynth.modIndex = Math.round((0.8 + Math.random() * 7) * 10) / 10;
+                    c.fmSynth.feedback = Math.round(Math.random() * 65) / 100;
+                    c.fmSynth.cutoff = Math.round(900 + Math.random() * 9000);
+                  }
+                }, true);
+              }}
+              title="Randomize Synth Parameters"
+            >
+              <Dices size={12} /> Randomize
+            </button>
+          )}
           <button
             className={midiLearnActive === `${channel.id}:cutoff` ? 'active sm' : 'sm'}
             onClick={() => toggleMidiLearn('cutoff', 80, 14000)}
@@ -546,38 +581,26 @@ export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
           )}
         </div>
 
-        {/* Playable Onscreen Audition Keyboard */}
-        <div
-          style={{
-            flex: 'none',
-            height: 64,
-            background: '#0E1528',
-            borderTop: '1px solid #24324D',
-            padding: '6px 12px',
-            display: 'flex',
-            gap: 2,
-          }}
-        >
-          {KEYBOARD_NOTES.map((midi) => {
+        {/* Playable Onscreen Audition Keyboard with PC Keybinds */}
+        <div className="piano-live-strip" style={{ height: 64 }}>
+          {KEYBOARD_SEMIS.map((semi) => {
+            const midi = baseTypingMidi + semi;
             const isBlack = [1, 3, 6, 8, 10].includes(midi % 12);
+            const isPressed = pressedNotes.has(midi);
+            const bind = SEMITONE_TO_KEY_LABEL[semi] || '';
             return (
               <button
-                key={midi}
-                onMouseDown={() => void audioEngine.auditionChannelNote(channel.id, midi, 0.85, 0.35)}
-                style={{
-                  flex: 1,
-                  height: '100%',
-                  padding: 0,
-                  background: isBlack ? '#080C18' : '#16213B',
-                  borderColor: '#24324D',
-                  color: midi % 12 === 0 ? '#FFFFFF' : '#64748B',
-                  fontSize: 9.5,
-                  fontFamily: 'var(--font-mono)',
-                  alignItems: 'flex-end',
-                  paddingBottom: 4,
-                }}
+                key={semi}
+                className={`piano-live-key ${isBlack ? 'black' : 'white'} ${isPressed ? 'pressed' : ''}`}
+                onMouseDown={() => void audioEngine.noteOnLive(channel.id, midi, 0.85)}
+                onMouseUp={() => audioEngine.noteOffLive(channel.id, midi)}
+                onMouseLeave={() => { if (isPressed) audioEngine.noteOffLive(channel.id, midi); }}
+                title={`${midiToNoteName(midi)} (Keyboard key: ${bind})`}
               >
-                {midi % 12 === 0 ? midiToNoteName(midi) : ''}
+                <span style={{ fontWeight: 700, fontSize: 10 }}>{bind}</span>
+                <span className="mono" style={{ fontSize: 9, opacity: 0.8 }}>
+                  {midi % 12 === 0 ? midiToNoteName(midi) : ''}
+                </span>
               </button>
             );
           })}

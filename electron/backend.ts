@@ -203,3 +203,42 @@ export async function runLocalPythonScript(code: string): Promise<{ ok: boolean;
   }
   return { ok: false, error: 'No local Python 3 interpreter found in PATH' };
 }
+
+/**
+ * Renders classic Windows SAPI Text-to-Speech (Microsoft David / Zira) directly into a WAV byte buffer
+ * via built-in System.Speech.Synthesis so users can chop, pitch-shift, and sample classic Windows TTS voices.
+ */
+export async function renderWindowsSapiWav(
+  text: string,
+  rate = 0
+): Promise<{ ok: boolean; bytes?: Uint8Array; error?: string }> {
+  if (process.platform !== 'win32') {
+    return { ok: false, error: 'Windows SAPI TTS is only available on Windows' };
+  }
+  const cleanText = text.replace(/[\r\n]+/g, ' ').trim().slice(0, 400);
+  if (!cleanText) return { ok: false, error: 'Empty text' };
+  const clampedRate = Math.max(-8, Math.min(8, Math.round(rate)));
+  const tmpWav = path.join(os.tmpdir(), `bebeat_tts_${Date.now()}.wav`);
+
+  const psScript = `
+Add-Type -AssemblyName System.Speech
+$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$synth.Rate = ${clampedRate}
+$synth.SetOutputToWaveFile('${tmpWav.replace(/'/g, "''")}')
+$synth.Speak($env:BEBEAT_TTS_TEXT)
+$synth.Dispose()
+`;
+
+  try {
+    await execFileAsync('powershell.exe', ['-NoProfile', '-Command', psScript], {
+      timeout: 12000,
+      env: { ...process.env, BEBEAT_TTS_TEXT: cleanText },
+    });
+    const buf = await fs.readFile(tmpWav);
+    return { ok: true, bytes: new Uint8Array(buf) };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    await fs.unlink(tmpWav).catch(() => {});
+  }
+}

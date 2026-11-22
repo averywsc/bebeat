@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('bebeat', {
   readAssetBinary: (relPath: string) => ipcRenderer.invoke('bebeat:read-asset-bin', relPath),
   readAssetJson: (relPath: string) => ipcRenderer.invoke('bebeat:read-asset-json', relPath),
   runPython: (code: string) => ipcRenderer.invoke('bebeat:run-python', code),
+  renderSapiTts: (text: string, rate: number) => ipcRenderer.invoke('bebeat:render-sapi-tts', text, rate),
   transcodeSave: (req: unknown) => ipcRenderer.invoke('bebeat:transcode-save', req),
   saveProject: (defaultName: string, json: string) => ipcRenderer.invoke('bebeat:save-project', defaultName, json),
   openProject: () => ipcRenderer.invoke('bebeat:open-project'),

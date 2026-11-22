@@ -109,7 +109,7 @@ export const LiveCodeStudio: React.FC<LiveCodeStudioProps> = ({ project, pythonM
 
     audioEngine.applyLiveCodeProgram(prog, activeBuf.quantize);
     if (autoStart && !audioEngine.readTelemetry().playing) {
-      await audioEngine.play();
+      await audioEngine.play({ scope: 'live-code-only' });
     }
 
     setStatusBadge(audioEngine.isPendingHotReload() ? 'pending' : 'live');
