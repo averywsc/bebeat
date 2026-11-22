@@ -379,7 +379,7 @@ export function createInitialProject(): ProjectState {
   ];
 
   return {
-    version: '1.0.0',
+    version: '1.1.0',
     name: 'Untitled Studio Session',
     bpm: 128,
     swing: 0.08,
