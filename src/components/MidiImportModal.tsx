@@ -120,14 +120,28 @@ export const MidiImportModal: React.FC<MidiImportModalProps> = ({
         createdPats.push(pat);
       }
 
-      if (createdPats[0]) {
-        s.activePatternId = createdPats[0].id;
-      }
-      const firstMelodic = chosen.find((t) => !t.isPercussion) || chosen[0];
-      const firstChId = firstMelodic ? newChannelMap.get(firstMelodic.index) : undefined;
+      // Select the melodic track that enters earliest (tie-break by most notes) so editors immediately show notes
+      const melodicTracks = chosen.filter((t) => !t.isPercussion && t.notes.length > 0);
+      const pool = melodicTracks.length > 0 ? melodicTracks : chosen;
+      const bestTrack = [...pool].sort((a, b) => {
+        const aStart = a.notes[0]?.startBeat ?? 999999;
+        const bStart = b.notes[0]?.startBeat ?? 999999;
+        if (Math.abs(aStart - bStart) > 3.9) return aStart - bStart;
+        return b.noteCount - a.noteCount;
+      })[0];
+      const firstChId = bestTrack ? newChannelMap.get(bestTrack.index) : undefined;
       if (firstChId) s.selectedChannelId = firstChId;
 
-      // Place full song arrangement on Playlist Track 1
+      // Pick the first created pattern chunk that actually contains notes for the selected track (or any track)
+      const firstNonEmptyPat =
+        (firstChId && createdPats.find((p) => (p.notes[firstChId] || []).length > 0)) ||
+        createdPats.find((p) => Object.values(p.notes).some((arr) => arr.length > 0)) ||
+        createdPats[0];
+      if (firstNonEmptyPat) {
+        s.activePatternId = firstNonEmptyPat.id;
+      }
+
+      // Place full song arrangement on Playlist Track 1 and switch playback to Song mode
       s.playlistClips = createdPats.map((p, idx) => ({
         id: uid('mclip'),
         trackIndex: 1,
@@ -139,6 +153,7 @@ export const MidiImportModal: React.FC<MidiImportModalProps> = ({
         offsetBeats: 0,
         muted: false,
       }));
+      s.playbackMode = 'song';
       s.loopStartBeat = 0;
       s.loopEndBeat = Math.max(16, numChunks * chunkBeats);
     });

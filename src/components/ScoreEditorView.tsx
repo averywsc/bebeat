@@ -33,7 +33,7 @@ export const ScoreEditorView: React.FC<ScoreEditorViewProps> = ({ project, onReq
   const [clefMode, setClefMode] = useState<ClefMode>('grand');
   const [keySig, setKeySig] = useState<string>('C');
   const [paperTheme, setPaperTheme] = useState<'paper' | 'dark'>('paper');
-  const [sourceScope, setSourceScope] = useState<'channel' | 'all-melodic' | 'full-song'>('channel');
+  const [sourceScope, setSourceScope] = useState<'full-song' | 'channel-song' | 'all-melodic' | 'channel'>('full-song');
   const [scoreTitle, setScoreTitle] = useState(project.name || 'Untitled Score');
   const [composer, setComposer] = useState('Bebeat Studio');
   const [measuresPerSystem, setMeasuresPerSystem] = useState<number>(4);
@@ -42,41 +42,111 @@ export const ScoreEditorView: React.FC<ScoreEditorViewProps> = ({ project, onReq
   const [zoomPct, setZoomPct] = useState<number>(100);
   const [exportStatus, setExportStatus] = useState('');
 
+  // Keep sheet title synced whenever a new project or MIDI file is loaded
+  useEffect(() => {
+    setScoreTitle(project.name || 'Untitled Score');
+  }, [project.name]);
+
   const pattern = project.patterns.find((p) => p.id === project.activePatternId) || project.patterns[0];
   const channel = project.channels.find((c) => c.id === project.selectedChannelId) || project.channels[0];
 
-  // Collect notes based on selected scope (Single Channel, All Melodic Channels in Pattern, or Full Song Playlist)
+  // Helper: extract notes for a channel from a pattern (falling back to Channel Rack steps if piano roll is empty)
+  const extractPatternChannelNotes = (pat: typeof pattern, chId: string, baseMidi = 48): PianoNote[] => {
+    if (!pat) return [];
+    const direct = pat.notes[chId] || [];
+    if (direct.length > 0) return direct;
+    const steps = pat.steps[chId] || [];
+    const fromSteps: PianoNote[] = [];
+    steps.forEach((cell, idx) => {
+      if (!cell.active) return;
+      fromSteps.push({
+        id: `st_${pat.id}_${chId}_${idx}`,
+        midi: Math.max(24, Math.min(96, baseMidi + (cell.pitchOffset || 0))),
+        startBeat: idx * 0.25,
+        duration: 0.25,
+        velocity: cell.velocity || 0.82,
+        pan: cell.pan || 0,
+      });
+    });
+    return fromSteps;
+  };
+
+  // Collect notes based on selected scope
   const notes: PianoNote[] = useMemo(() => {
     if (!pattern) return [];
-    if (sourceScope === 'channel' && channel) {
-      return pattern.notes[channel.id] || [];
-    }
-    if (sourceScope === 'all-melodic') {
-      const merged: PianoNote[] = [];
-      for (const ch of project.channels) {
-        if (ch.engine === 'DrumSynth' || ch.mute) continue;
-        for (const n of pattern.notes[ch.id] || []) merged.push(n);
-      }
-      return merged.sort((a, b) => a.startBeat - b.startBeat || a.midi - b.midi);
-    }
-    // Full song arrangement from Playlist
-    const songNotes: PianoNote[] = [];
-    for (const clip of project.playlistClips) {
-      if (clip.muted || clip.kind !== 'pattern' || !clip.patternId) continue;
-      const p = project.patterns.find((x) => x.id === clip.patternId);
-      if (!p) continue;
-      const targetChIds = channel && sourceScope !== 'full-song' ? [channel.id] : project.channels.filter((c) => c.engine !== 'DrumSynth' && !c.mute).map((c) => c.id);
-      for (const cid of targetChIds) {
-        for (const n of p.notes[cid] || []) {
-          if (n.startBeat < clip.durationBeats) {
-            songNotes.push({ ...n, startBeat: clip.startBeat + n.startBeat });
+
+    const melodicChs = project.channels.filter((c) => c.engine !== 'DrumSynth' && !c.mute);
+    const activeMelodicIds = (melodicChs.length > 0 ? melodicChs : project.channels.filter((c) => !c.mute)).map(
+      (c) => c.id
+    );
+
+    const collectSongForChannels = (chIds: string[]): PianoNote[] => {
+      const out: PianoNote[] = [];
+      for (const clip of project.playlistClips) {
+        if (clip.muted || clip.kind !== 'pattern' || !clip.patternId) continue;
+        const p = project.patterns.find((x) => x.id === clip.patternId);
+        if (!p) continue;
+        for (const cid of chIds) {
+          for (const n of p.notes[cid] || []) {
+            if (n.startBeat < clip.durationBeats - 0.001) {
+              out.push({ ...n, startBeat: clip.startBeat + n.startBeat });
+            }
           }
         }
       }
+      return out.sort((a, b) => a.startBeat - b.startBeat || a.midi - b.midi);
+    };
+
+    if (sourceScope === 'channel' && channel) {
+      return extractPatternChannelNotes(pattern, channel.id, channel.engine === 'DrumSynth' ? 36 : 48);
     }
-    return songNotes.length > 0
-      ? songNotes.sort((a, b) => a.startBeat - b.startBeat || a.midi - b.midi)
-      : (channel ? pattern.notes[channel.id] || [] : []);
+
+    if (sourceScope === 'channel-song' && channel) {
+      const fromSong = collectSongForChannels([channel.id]);
+      if (fromSong.length > 0) return fromSong;
+      return extractPatternChannelNotes(pattern, channel.id, channel.engine === 'DrumSynth' ? 36 : 48);
+    }
+
+    if (sourceScope === 'all-melodic') {
+      const merged: PianoNote[] = [];
+      for (const cid of activeMelodicIds) {
+        for (const n of pattern.notes[cid] || []) merged.push(n);
+      }
+      if (merged.length > 0) return merged.sort((a, b) => a.startBeat - b.startBeat || a.midi - b.midi);
+      // Fallback: include steps from melodic channels if no piano roll notes exist
+      for (const cid of activeMelodicIds) {
+        for (const n of extractPatternChannelNotes(pattern, cid, 48)) merged.push(n);
+      }
+      return merged.sort((a, b) => a.startBeat - b.startBeat || a.midi - b.midi);
+    }
+
+    // Full Song Arrangement (default): all melodic channels across all playlist clips
+    let songNotes = collectSongForChannels(activeMelodicIds);
+    if (songNotes.length === 0) {
+      // Fallback 1: check all channels (in case imported MIDI was percussion/all-drums)
+      songNotes = collectSongForChannels(project.channels.map((c) => c.id));
+    }
+    if (songNotes.length === 0) {
+      // Fallback 2: check active pattern notes across all melodic channels
+      for (const cid of activeMelodicIds) {
+        for (const n of pattern.notes[cid] || []) songNotes.push(n);
+      }
+    }
+    if (songNotes.length === 0) {
+      // Fallback 3: check all patterns sequentially
+      let beatOffset = 0;
+      for (const pat of project.patterns) {
+        let patHas = false;
+        for (const cid of activeMelodicIds) {
+          for (const n of pat.notes[cid] || []) {
+            songNotes.push({ ...n, startBeat: beatOffset + n.startBeat });
+            patHas = true;
+          }
+        }
+        if (patHas) beatOffset += Math.max(4, pat.lengthSteps / 4);
+      }
+    }
+    return songNotes.sort((a, b) => a.startBeat - b.startBeat || a.midi - b.midi);
   }, [pattern, channel, project.channels, project.patterns, project.playlistClips, sourceScope]);
 
   const totalBeats = useMemo(() => {
@@ -101,10 +171,12 @@ export const ScoreEditorView: React.FC<ScoreEditorViewProps> = ({ project, onReq
       title: scoreTitle || project.name,
       subtitle:
         sourceScope === 'channel'
-          ? channel?.name || 'Piano'
+          ? `${channel?.name || 'Piano'} (Pattern)`
+          : sourceScope === 'channel-song'
+          ? `${channel?.name || 'Piano'} (Full Song)`
           : sourceScope === 'all-melodic'
           ? 'Full Ensemble (Active Pattern)'
-          : 'Full Song Arrangement',
+          : 'Full Score',
       composer,
       bpm: project.bpm,
       timeSig: project.timeSignature,
@@ -140,10 +212,11 @@ export const ScoreEditorView: React.FC<ScoreEditorViewProps> = ({ project, onReq
     .replace(/[^a-z0-9_-]+/gi, '_')
     .toLowerCase();
 
-  /** Download print-ready 300-DPI white-paper PNG sheet music */
+  /** Download print-ready high-DPI white-paper PNG sheet music */
   const handleDownloadPng = async () => {
     const printLayout = engraveSheetMusicSvg(notes, { ...sheetOpts, paperTheme: 'paper' });
-    const scale = 2.5;
+    // Clamp canvas scale so very long 100+ bar scores never exceed browser max canvas height
+    const scale = Math.max(1.0, Math.min(2.5, 11500 / Math.max(1, printLayout.height)));
     const svgBlob = new Blob([printLayout.svg], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
     try {
@@ -275,12 +348,13 @@ export const ScoreEditorView: React.FC<ScoreEditorViewProps> = ({ project, onReq
         </button>
 
         <select value={sourceScope} onChange={(e) => setSourceScope(e.target.value as typeof sourceScope)}>
-          <option value="channel">Active Channel ({channel.name})</option>
-          <option value="all-melodic">All Melodic Tracks (Pattern)</option>
-          <option value="full-song">Full Song (Playlist)</option>
+          <option value="full-song">Full Song (All Tracks)</option>
+          <option value="channel-song">Active Channel — Full Song ({channel.name})</option>
+          <option value="all-melodic">Active Pattern (All Melodic)</option>
+          <option value="channel">Active Channel — Pattern ({channel.name})</option>
         </select>
 
-        {sourceScope === 'channel' && (
+        {(sourceScope === 'channel' || sourceScope === 'channel-song') && (
           <select
             value={channel.id}
             onChange={(e) => projectStore.update((s) => { s.selectedChannelId = e.target.value; }, false)}
@@ -290,6 +364,10 @@ export const ScoreEditorView: React.FC<ScoreEditorViewProps> = ({ project, onReq
             ))}
           </select>
         )}
+
+        <span className="mono" style={{ fontSize: 10.5, color: 'var(--ink-mute)' }}>
+          {notes.length} notes · {engraved.totalMeasures} bars
+        </span>
 
         <div className="spacer" />
 
