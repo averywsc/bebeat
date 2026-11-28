@@ -29,6 +29,7 @@ export interface BebeatElectronAPI {
   openProject: () => Promise<{ path: string; json: string } | null>;
   pickExportPath: (defaultName: string, ext: string) => Promise<string | null>;
   pickExportFolder: () => Promise<string | null>;
+  pickMidi?: () => Promise<{ name: string; path: string; bytes: Uint8Array } | null>;
   pickAudioOrSf2: () => Promise<{ name: string; path: string; bytes: Uint8Array } | null>;
   saveBinary: (defaultName: string, ext: string, bytes: Uint8Array) => Promise<string | null>;
 }

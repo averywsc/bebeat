@@ -151,24 +151,34 @@ export const App: React.FC = () => {
     try {
       const parsed = parseSmfMultiTrack(bytes, name, projectStore.getState().bpm);
       if (parsed.tracks.length === 0) {
-        setHintText(`MIDI file "${name}" contained no note events.`);
+        const msg = `MIDI file "${name}" contained no playable note events.`;
+        setHintText(msg);
+        window.alert(msg);
         return;
       }
       setHasLaunchedOnce(true);
       setShowHome(false);
       setPendingMidiImport(parsed);
     } catch (err) {
-      setHintText(`Failed to parse MIDI "${name}": ${err instanceof Error ? err.message : String(err)}`);
+      const msg = `Failed to read MIDI "${name}": ${err instanceof Error ? err.message : String(err)}`;
+      setHintText(msg);
+      window.alert(msg);
     }
   }, []);
 
   const handleImportMidiFile = useCallback(async () => {
+    if (window.bebeat?.pickMidi) {
+      const picked = await window.bebeat.pickMidi();
+      if (picked) {
+        openMidiBytes(picked.name, picked.bytes);
+      }
+      return;
+    }
     if (window.bebeat?.pickAudioOrSf2) {
       const picked = await window.bebeat.pickAudioOrSf2();
-      if (picked && /\.(mid|midi)$/i.test(picked.name)) {
+      if (picked && /\.(mid|midi|rmi)$/i.test(picked.name)) {
         openMidiBytes(picked.name, picked.bytes);
       } else if (picked) {
-        // Also allow picking an audio file directly
         const key = await audioEngine.loadCustomSample(picked.name, picked.bytes);
         const buf = audioEngine.getKitBuffer(key);
         if (buf) {
@@ -184,7 +194,7 @@ export const App: React.FC = () => {
     }
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.mid,.midi';
+    input.accept = '.mid,.midi,.rmi,audio/midi,audio/x-midi';
     input.onchange = async () => {
       const file = input.files?.[0];
       if (file) openMidiBytes(file.name, new Uint8Array(await file.arrayBuffer()));

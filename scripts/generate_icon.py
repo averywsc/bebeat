@@ -85,13 +85,19 @@ def make_ico(png_blobs: list[tuple[int, bytes]]) -> bytes:
 
 
 def main() -> None:
-    out_dir = Path(__file__).resolve().parent.parent / "build"
+    root = Path(__file__).resolve().parent.parent
+    out_dir = root / "build"
+    pub_dir = root / "public"
     out_dir.mkdir(parents=True, exist_ok=True)
+    pub_dir.mkdir(parents=True, exist_ok=True)
     sizes = [256, 128, 64, 48, 32, 16]
     pngs = [(s, make_png(s)) for s in sizes]
+    ico_bytes = make_ico(pngs)
     (out_dir / "icon.png").write_bytes(pngs[0][1])
-    (out_dir / "icon.ico").write_bytes(make_ico(pngs))
-    print(f"[OK] Wrote {out_dir / 'icon.ico'} and {out_dir / 'icon.png'}")
+    (out_dir / "icon.ico").write_bytes(ico_bytes)
+    (pub_dir / "icon.png").write_bytes(pngs[0][1])
+    (pub_dir / "icon.ico").write_bytes(ico_bytes)
+    print(f"[OK] Wrote {out_dir / 'icon.ico'}, {out_dir / 'icon.png'}, and public/icon.*")
 
 
 if __name__ == "__main__":

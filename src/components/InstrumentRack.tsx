@@ -188,7 +188,7 @@ export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
   return (
     <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', background: 'var(--bg)' }}>
       {/* Left Channel Selector Rail */}
-      <aside className="panel-col" style={{ width: 220, flex: 'none' }}>
+      <aside className="panel-col" style={{ width: 'clamp(172px, 16vw, 210px)', flex: 'none' }}>
         <div className="panel-header">
           <span className="panel-title">Instruments</span>
         </div>
@@ -693,7 +693,7 @@ export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
       </div>
 
       {/* Right Beat-Reactive & Audio-Driven Modulation Matrix */}
-      <aside className="mixer-fx-rack" style={{ width: 340 }}>
+      <aside className="mixer-fx-rack" style={{ width: 'clamp(248px, 24vw, 310px)' }}>
         <div className="panel-header">
           <Activity size={13} />
           <span className="panel-title">Beat-Reactive Mod Matrix</span>

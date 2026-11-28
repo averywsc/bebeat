@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, session } from 'electron';
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -14,6 +15,7 @@ import {
 // Configure low-latency Windows WASAPI audio and enable SharedArrayBuffer / Web MIDI
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 if (process.platform === 'win32') {
+  app.setAppUserModelId('app.bebeat.studio');
   app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer,AudioServiceOutOfProcess');
   if (process.env.BEBEAT_WASAPI_EXCLUSIVE === '1') {
     app.commandLine.appendSwitch('enable-exclusive-audio');
@@ -22,14 +24,26 @@ if (process.platform === 'win32') {
 
 let mainWindow: BrowserWindow | null = null;
 
+function resolveAppIcon(): string | undefined {
+  const candidates = [
+    path.join(__dirname, '../dist/icon.ico'),
+    path.join(__dirname, '../dist/icon.png'),
+    path.join(__dirname, '../build/icon.ico'),
+    path.join(__dirname, '../build/icon.png'),
+  ];
+  return candidates.find((p) => fsSync.existsSync(p));
+}
+
 function createWindow() {
+  const iconPath = resolveAppIcon();
   mainWindow = new BrowserWindow({
-    width: 1580,
-    height: 960,
-    minWidth: 1180,
-    minHeight: 720,
+    width: 1520,
+    height: 940,
+    minWidth: 1080,
+    minHeight: 680,
     backgroundColor: '#141416',
     title: 'Bebeat',
+    icon: iconPath,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -114,6 +128,21 @@ app.whenReady().then(() => {
       properties: ['openDirectory', 'createDirectory'],
     });
     return res.canceled || res.filePaths.length === 0 ? null : res.filePaths[0];
+  });
+
+  ipcMain.handle('bebeat:pick-midi', async () => {
+    const res = await dialog.showOpenDialog({
+      title: 'Import MIDI File (.mid / .midi)',
+      properties: ['openFile'],
+      filters: [
+        { name: 'MIDI Files', extensions: ['mid', 'midi', 'rmi'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (res.canceled || res.filePaths.length === 0) return null;
+    const filePath = res.filePaths[0];
+    const buf = await fs.readFile(filePath);
+    return { name: path.basename(filePath), path: filePath, bytes: new Uint8Array(buf) };
   });
 
   ipcMain.handle('bebeat:pick-audio-or-sf2', async () => {

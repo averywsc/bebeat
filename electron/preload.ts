@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('bebeat', {
   openProject: () => ipcRenderer.invoke('bebeat:open-project'),
   pickExportPath: (defaultName: string, ext: string) => ipcRenderer.invoke('bebeat:pick-export-path', defaultName, ext),
   pickExportFolder: () => ipcRenderer.invoke('bebeat:pick-export-folder'),
+  pickMidi: () => ipcRenderer.invoke('bebeat:pick-midi'),
   pickAudioOrSf2: () => ipcRenderer.invoke('bebeat:pick-audio-or-sf2'),
   saveBinary: (defaultName: string, ext: string, bytes: Uint8Array) =>
     ipcRenderer.invoke('bebeat:save-binary', defaultName, ext, bytes),

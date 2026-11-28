@@ -173,15 +173,25 @@ export const BrowserSidebar: React.FC<BrowserSidebarProps> = ({ project, onHint,
   const loadedBuffers = audioEngine.listAllLoadedBuffers();
 
   return (
-    <aside className="panel-col" style={{ width: 256, flex: 'none' }}>
-      <div className="panel-header" style={{ padding: '0 6px', gap: 2 }}>
+    <aside className="panel-col" style={{ width: 'clamp(216px, 18vw, 248px)', flex: 'none' }}>
+      <div
+        style={{
+          flex: 'none',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+          gap: 3,
+          padding: '5px 6px',
+          background: 'var(--panel)',
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
         {(
           [
-            { id: 'plugins', label: 'Plugins', icon: Cpu },
-            { id: 'loops', label: 'Loops', icon: Disc3 },
-            { id: 'library', label: 'Library', icon: BookOpen },
-            { id: 'files', label: 'Files', icon: Folder },
-            { id: 'project', label: 'Project', icon: Layers },
+            { id: 'plugins', short: 'FX', label: 'Plugins & Instruments', icon: Cpu },
+            { id: 'loops', short: 'Loops', label: 'Loop Starters', icon: Disc3 },
+            { id: 'library', short: 'Lib', label: 'Sound Library', icon: BookOpen },
+            { id: 'files', short: 'Files', label: 'Audio Files', icon: Folder },
+            { id: 'project', short: 'Proj', label: 'Project Overview', icon: Layers },
           ] as const
         ).map((tab) => {
           const Icon = tab.icon;
@@ -189,12 +199,18 @@ export const BrowserSidebar: React.FC<BrowserSidebarProps> = ({ project, onHint,
             <button
               key={tab.id}
               className={section === tab.id ? 'active sm' : 'sm'}
-              style={{ flex: 1, padding: '4px 3px', fontSize: 10.5 }}
+              style={{
+                flexDirection: 'column',
+                gap: 2,
+                padding: '4px 2px',
+                fontSize: 9.5,
+                minWidth: 0,
+              }}
               onClick={() => setSection(tab.id)}
               title={tab.label}
             >
               <Icon size={11} />
-              <span>{tab.label}</span>
+              <span>{tab.short}</span>
             </button>
           );
         })}

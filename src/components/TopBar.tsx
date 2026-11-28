@@ -122,249 +122,261 @@ export const TopBar: React.FC<TopBarProps> = ({
   const masterTrack = project.mixerTracks.find((t) => t.kind === 'master');
 
   return (
-    <header className="topbar">
-      <button
-        className="sm icon-only"
-        onClick={onGoHome}
-        title="Home Screen (Recent Projects, New Templates & Guide)"
-      >
-        <Home size={13} />
-      </button>
-      <button
-        className={project.browserOpen ? 'active sm icon-only' : 'sm icon-only'}
-        onClick={() => projectStore.update((s) => { s.browserOpen = !s.browserOpen; }, false)}
-        title="Toggle Studio Browser (Plugins, Loops, Sound Library, Files, Project)"
-      >
-        <PanelLeft size={13} />
-      </button>
-      <div className="wordmark" style={{ cursor: 'pointer' }} onClick={onGoHome}>Bebeat</div>
-      <input
-        type="text"
-        value={project.name}
-        onChange={(e) => projectStore.update((s) => { s.name = e.target.value; }, false)}
-        title="Project Name"
-        style={{ width: 132, padding: '3px 7px', fontSize: 11.5 }}
-      />
-      <div className="topbar-sep" />
+    <div className="topbar-stack">
+      {/* Row 1: App Brand, File Actions, Command Search, Settings & Export */}
+      <header className="topbar">
+        <div className="transport-group">
+          <button
+            className="sm icon-only"
+            onClick={onGoHome}
+            title="Home Screen (Recent Projects, New Templates & Guide)"
+          >
+            <Home size={13} />
+          </button>
+          <button
+            className={project.browserOpen ? 'active sm icon-only' : 'sm icon-only'}
+            onClick={() => projectStore.update((s) => { s.browserOpen = !s.browserOpen; }, false)}
+            title="Toggle Studio Browser (Plugins, Loops, Sound Library, Files, Project)"
+          >
+            <PanelLeft size={13} />
+          </button>
+          <div className="wordmark" style={{ cursor: 'pointer', marginLeft: 2 }} onClick={onGoHome}>Bebeat</div>
+        </div>
 
-      {/* Context-Aware Play + Play All + Stop + Record */}
-      <div className="transport-group">
-        <button
-          className={isPlayingPart ? 'active' : ''}
-          onClick={() => (isPlayingPart ? audioEngine.stop(false) : onPlayCurrentPart())}
-          title="Play only the active section / instrument you are editing (Space)"
-        >
-          <Play size={12} fill={isPlayingPart ? 'var(--bg)' : 'none'} />
-          <span>{isPlayingPart ? 'Pause' : PART_PLAY_LABELS[activeTab]}</span>
-        </button>
-
-        <button
-          className={isPlayingAll ? 'active' : ''}
-          onClick={() => (isPlayingAll ? audioEngine.stop(false) : onPlayAll())}
-          title="Play all channels, patterns, and active live code together (Shift+Space)"
-        >
-          <Layers size={12} />
-          <span>{isPlayingAll ? 'Playing All' : 'Play All'}</span>
-        </button>
-
-        <button className="icon-only" onClick={handleStop} title="Stop and Reset Playhead">
-          <Square size={12} />
-        </button>
-
-        <button
-          className={project.recording ? 'rec-armed' : ''}
-          onClick={() => void handleToggleRecord()}
-          title="Record notes live from your PC Keyboard or MIDI controller into the Piano Roll"
-        >
-          <span className="rec-dot" />
-          <span>{project.recording ? 'Rec ON' : 'Rec'}</span>
-        </button>
-
-        <button
-          className={project.loopEnabled ? 'active sm' : 'sm'}
-          onClick={() => projectStore.update((s) => { s.loopEnabled = !s.loopEnabled; }, false)}
-          title="Toggle Loop"
-        >
-          <Repeat size={12} />
-          <span>Loop</span>
-        </button>
-
-        <button
-          className={project.metronome ? 'active sm' : 'sm'}
-          onClick={() => projectStore.update((s) => { s.metronome = !s.metronome; }, false)}
-          title="Metronome Click"
-        >
-          <Radio size={12} />
-          <span>Click</span>
-        </button>
-      </div>
-
-      <div className="time-readout mono" title="BAR : BEAT : STEP">
-        {timecode}
-      </div>
-
-      {/* BPM + Tap Tempo + Swing */}
-      <div className="param-pill">
-        <span>BPM</span>
         <input
-          type="number"
-          min={40}
-          max={260}
-          step={1}
-          value={project.bpm}
-          onChange={(e) => {
-            const val = Number(e.target.value);
-            if (!Number.isNaN(val)) {
-              projectStore.update((s) => { s.bpm = Math.max(40, Math.min(260, val)); }, false);
-            }
-          }}
+          type="text"
+          value={project.name}
+          onChange={(e) => projectStore.update((s) => { s.name = e.target.value; }, false)}
+          title="Project Name"
+          style={{ width: 138, padding: '3px 8px', fontSize: 11.5 }}
         />
-      </div>
-      <button className="sm" onClick={handleTapTempo} title="Click rhythmically to set BPM">
-        Tap
-      </button>
 
-      <div className="param-pill">
-        <span>Swing</span>
-        <input
-          type="number"
-          min={0}
-          max={45}
-          step={1}
-          value={Math.round(project.swing * 100)}
-          onChange={(e) => {
-            const val = Number(e.target.value);
-            if (!Number.isNaN(val)) {
-              projectStore.update((s) => { s.swing = Math.max(0, Math.min(0.45, val / 100)); }, false);
-            }
-          }}
-        />
-        <span className="mono">%</span>
-      </div>
+        <div className="topbar-sep" />
 
-      {/* Typing-to-Piano Toggle + Octave */}
-      <button
-        className={project.typingKeyboardEnabled ? 'active sm' : 'sm'}
-        onClick={() =>
-          projectStore.update((s) => {
-            s.typingKeyboardEnabled = !s.typingKeyboardEnabled;
-          }, false)
-        }
-        title="Play piano on your computer keyboard (Z-M lower octave, Q-P upper octave, [ / ] change octave)"
-      >
-        <Keyboard size={12} />
-        <span>Keys (Oct {project.typingOctave})</span>
-      </button>
+        <div className="transport-group">
+          <button className="sm" onClick={onOpenProjectFile} title="Open .bebeat Project File">
+            <FolderOpen size={12} />
+            <span>Open</span>
+          </button>
+          <button className="sm" onClick={onQuickSave} title="Save to Recent Projects (Ctrl+S)">
+            <Save size={12} />
+            <span>Save</span>
+          </button>
+          <button className="sm" onClick={onSaveProjectFile} title="Save .bebeat Project File to Disk">
+            <span>Save As</span>
+          </button>
+          <button className="sm" onClick={onImportMidi} title="Upload & Import .mid MIDI Song (Multi-Track + Sheet Music)">
+            <Upload size={12} />
+            <span>Import .mid</span>
+          </button>
+        </div>
 
-      <div className="topbar-sep" />
+        <div className="topbar-sep" />
 
-      <div className="transport-group">
+        <div className="transport-group">
+          <button
+            className="sm icon-only"
+            disabled={!projectStore.canUndo()}
+            onClick={() => projectStore.undo()}
+            title="Undo (Ctrl+Z)"
+          >
+            <Undo2 size={13} />
+          </button>
+          <button
+            className="sm icon-only"
+            disabled={!projectStore.canRedo()}
+            onClick={() => projectStore.redo()}
+            title="Redo (Ctrl+Y)"
+          >
+            <Redo2 size={13} />
+          </button>
+        </div>
+
+        <div className="spacer" />
+
         <button
-          className="icon-only"
-          disabled={!projectStore.canUndo()}
-          onClick={() => projectStore.undo()}
-          title="Undo (Ctrl+Z)"
+          className="cmd-trigger"
+          onClick={onOpenCommandPalette}
+          title="Search tools, plugins, MIDI, sheet music (Ctrl+K)"
         >
-          <Undo2 size={13} />
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, overflow: 'hidden' }}>
+            <Search size={12} style={{ flex: 'none' }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Search tools, plugins...</span>
+          </span>
+          <span className="cmd-kbd">Ctrl+K</span>
         </button>
-        <button
-          className="icon-only"
-          disabled={!projectStore.canRedo()}
-          onClick={() => projectStore.redo()}
-          title="Redo (Ctrl+Y)"
-        >
-          <Redo2 size={13} />
-        </button>
-      </div>
 
-      {/* Main Volume & Master Pitch Panel */}
-      <div className="param-pill" title="Master Output Volume">
-        <span>Vol</span>
-        <input
-          type="range"
-          min={0}
-          max={1.3}
-          step={0.02}
-          style={{ width: 54 }}
-          value={masterTrack?.volume ?? 0.96}
-          onChange={(e) => {
-            const v = parseFloat(e.target.value);
+        <div className="spacer" />
+
+        <div className="transport-group">
+          <button className="sm icon-only" onClick={onOpenHelp} title="Quick Help & Keyboard Shortcuts">
+            <HelpCircle size={13} />
+          </button>
+          <button className="sm" onClick={onOpenSettings} title="Audio WASAPI, MIDI Learn, Theme & Python Settings">
+            <SlidersHorizontal size={12} />
+            <span>Settings</span>
+          </button>
+          <button className="primary sm" onClick={onOpenExport} title="Lossless Mastering & Stem Export">
+            <Download size={12} />
+            <span>Export</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Row 2: Dedicated Transport, Timecode, BPM, Swing, Keys, Master Vol & Pitch */}
+      <div className="transport-strip">
+        <div className="transport-group">
+          <button
+            className={isPlayingPart ? 'active sm' : 'sm'}
+            onClick={() => (isPlayingPart ? audioEngine.stop(false) : onPlayCurrentPart())}
+            title="Play only the active section / instrument you are editing (Space)"
+          >
+            <Play size={11} fill={isPlayingPart ? '#ffffff' : 'none'} />
+            <span>{isPlayingPart ? 'Pause' : PART_PLAY_LABELS[activeTab]}</span>
+          </button>
+
+          <button
+            className={isPlayingAll ? 'active sm' : 'sm'}
+            onClick={() => (isPlayingAll ? audioEngine.stop(false) : onPlayAll())}
+            title="Play all channels, patterns, and active live code together (Shift+Space)"
+          >
+            <Layers size={11} />
+            <span>{isPlayingAll ? 'Playing All' : 'Play All'}</span>
+          </button>
+
+          <button className="sm icon-only" onClick={handleStop} title="Stop and Reset Playhead">
+            <Square size={11} />
+          </button>
+
+          <button
+            className={project.recording ? 'rec-armed sm' : 'sm'}
+            onClick={() => void handleToggleRecord()}
+            title="Record notes live from your PC Keyboard or MIDI controller into the Piano Roll"
+          >
+            <span className="rec-dot" />
+            <span>{project.recording ? 'Rec ON' : 'Rec'}</span>
+          </button>
+
+          <button
+            className={project.loopEnabled ? 'active sm' : 'sm'}
+            onClick={() => projectStore.update((s) => { s.loopEnabled = !s.loopEnabled; }, false)}
+            title="Toggle Loop"
+          >
+            <Repeat size={11} />
+            <span>Loop</span>
+          </button>
+
+          <button
+            className={project.metronome ? 'active sm' : 'sm'}
+            onClick={() => projectStore.update((s) => { s.metronome = !s.metronome; }, false)}
+            title="Metronome Click"
+          >
+            <Radio size={11} />
+            <span>Click</span>
+          </button>
+        </div>
+
+        <div className="time-readout mono" title="BAR : BEAT : STEP">
+          {timecode}
+        </div>
+
+        <div className="param-pill">
+          <span>BPM</span>
+          <input
+            type="number"
+            min={40}
+            max={260}
+            step={1}
+            value={project.bpm}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              if (!Number.isNaN(val)) {
+                projectStore.update((s) => { s.bpm = Math.max(40, Math.min(260, val)); }, false);
+              }
+            }}
+          />
+        </div>
+        <button className="sm" onClick={handleTapTempo} title="Click rhythmically to set BPM">
+          Tap
+        </button>
+
+        <div className="param-pill">
+          <span>Swing</span>
+          <input
+            type="number"
+            min={0}
+            max={45}
+            step={1}
+            style={{ width: 36 }}
+            value={Math.round(project.swing * 100)}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              if (!Number.isNaN(val)) {
+                projectStore.update((s) => { s.swing = Math.max(0, Math.min(0.45, val / 100)); }, false);
+              }
+            }}
+          />
+          <span className="mono">%</span>
+        </div>
+
+        <button
+          className={project.typingKeyboardEnabled ? 'active sm' : 'sm'}
+          onClick={() =>
             projectStore.update((s) => {
-              const m = s.mixerTracks.find((t) => t.kind === 'master');
-              if (m) m.volume = v;
-            }, false);
-          }}
-        />
-      </div>
-
-      <div className="param-pill" title="Global Master Pitch Shift (Semitones)">
-        <span>Pitch</span>
-        <input
-          type="number"
-          min={-12}
-          max={12}
-          step={1}
-          style={{ width: 38 }}
-          value={project.masterPitchSemi}
-          onChange={(e) => {
-            const v = Math.max(-12, Math.min(12, parseInt(e.target.value, 10) || 0));
-            projectStore.update((s) => { s.masterPitchSemi = v; }, false);
-          }}
-        />
-      </div>
-
-      <button
-        className={project.automationRecording ? 'rec-armed sm' : 'sm'}
-        onClick={() => projectStore.update((s) => { s.automationRecording = !s.automationRecording; }, false)}
-        title="Record live knob/X-Y controller movements into Automation Lanes"
-      >
-        Auto Rec
-      </button>
-
-      <div className="spacer" />
-
-      <button
-        className="cmd-trigger"
-        onClick={onOpenCommandPalette}
-        title="Search tools, plugins, MIDI, sheet music (Ctrl+K)"
-      >
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <Search size={12} />
-          <span>Search tools, plugins...</span>
-        </span>
-        <span className="cmd-kbd">Ctrl+K</span>
-      </button>
-
-      <div className="spacer" />
-
-      <div className="transport-group">
-        <button className="icon-only" onClick={onOpenHelp} title="Quick Help & Keyboard Shortcuts">
-          <HelpCircle size={13} />
+              s.typingKeyboardEnabled = !s.typingKeyboardEnabled;
+            }, false)
+          }
+          title="Play piano on your computer keyboard (Z-M lower octave, Q-P upper octave, [ / ] change octave)"
+        >
+          <Keyboard size={11} />
+          <span>Keys Oct {project.typingOctave}</span>
         </button>
-        <button className="sm" onClick={onImportMidi} title="Upload & Import .mid MIDI Song (Multi-Track + Sheet Music)">
-          <Upload size={12} />
-          <span>.mid</span>
-        </button>
-        <button onClick={onOpenProjectFile} title="Open .bebeat Project File">
-          <FolderOpen size={13} />
-          <span>Open</span>
-        </button>
-        <button onClick={onQuickSave} title="Save to Recent Projects (Ctrl+S)">
-          <Save size={13} />
-          <span>Save</span>
-        </button>
-        <button className="sm" onClick={onSaveProjectFile} title="Save .bebeat Project File to Disk">
-          <span>Save File</span>
-        </button>
-        <button onClick={onOpenSettings} title="Audio WASAPI, MIDI Learn, Theme & Python Settings">
-          <SlidersHorizontal size={13} />
-          <span>Audio / MIDI</span>
-        </button>
-        <button className="primary" onClick={onOpenExport} title="Lossless Mastering & Stem Export">
-          <Download size={13} />
-          <span>Export</span>
+
+        <div className="spacer" />
+
+        <div className="param-pill" title="Master Output Volume">
+          <span>Vol</span>
+          <input
+            type="range"
+            min={0}
+            max={1.3}
+            step={0.02}
+            style={{ width: 58 }}
+            value={masterTrack?.volume ?? 0.96}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              projectStore.update((s) => {
+                const m = s.mixerTracks.find((t) => t.kind === 'master');
+                if (m) m.volume = v;
+              }, false);
+            }}
+          />
+        </div>
+
+        <div className="param-pill" title="Global Master Pitch Shift (Semitones)">
+          <span>Pitch</span>
+          <input
+            type="number"
+            min={-12}
+            max={12}
+            step={1}
+            style={{ width: 34 }}
+            value={project.masterPitchSemi}
+            onChange={(e) => {
+              const v = Math.max(-12, Math.min(12, parseInt(e.target.value, 10) || 0));
+              projectStore.update((s) => { s.masterPitchSemi = v; }, false);
+            }}
+          />
+        </div>
+
+        <button
+          className={project.automationRecording ? 'rec-armed sm' : 'sm'}
+          onClick={() => projectStore.update((s) => { s.automationRecording = !s.automationRecording; }, false)}
+          title="Record live knob/X-Y controller movements into Automation Lanes"
+        >
+          Auto Rec
         </button>
       </div>
-    </header>
+    </div>
   );
 };

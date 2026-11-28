@@ -190,3 +190,46 @@ test('Auto key signature detection, chord & dynamics sheet engraving, and full p
   const uniqueFxIds = new Set(EFFECT_CATALOG.map((e) => e.id));
   assert.equal(uniqueFxIds.size, EFFECT_CATALOG.length, 'Expected unique effect plugin IDs');
 });
+
+test('Native SMF MIDI parser handles Running Status, Format 0 multi-channel split, and RIFF RMID wrappers', () => {
+  // Hand-crafted Format 0 SMF with:
+  // - Tempo 100 BPM (600,000 us = 0x0927C0)
+  // - Running status Note-On (0x90) + Note-On vel=0 note-off on Ch 0 (Piano)
+  // - Percussion Note-On on Ch 9 (Drums)
+  // - Wrapped inside a 20-byte RIFF RMID header!
+  const trackEvents = [
+    0x00, 0xff, 0x51, 0x03, 0x09, 0x27, 0xc0, // Tempo 100 BPM
+    0x00, 0xc0, 0x00, // Ch0 Program 0 (Acoustic Grand Piano)
+    0x00, 0x90, 0x3c, 0x64, // Ch0 C4 On
+    0x60, 0x40, 0x60, // Running status: Ch0 E4 On at tick 96 (beat 0.5)
+    0x60, 0x3c, 0x00, // Running status: Ch0 C4 Off (vel=0) at tick 192 (beat 1.0)
+    0x00, 0x40, 0x00, // Running status: Ch0 E4 Off
+    0x00, 0x99, 0x24, 0x70, // Ch9 Kick On
+    0x60, 0x89, 0x24, 0x00, // Ch9 Kick Off
+    0x00, 0xff, 0x2f, 0x00, // End of track
+  ];
+  const riffPrefix = [
+    0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x40,
+    0x52, 0x4d, 0x49, 0x44, 0x64, 0x61, 0x74, 0x61,
+    0x00, 0x00, 0x00, 0x34,
+  ];
+  const mthd = [
+    0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06,
+    0x00, 0x00, // Format 0
+    0x00, 0x01, // 1 track
+    0x00, 0xc0, // 192 PPQ
+  ];
+  const mtrk = [
+    0x4d, 0x54, 0x72, 0x6b,
+    0x00, 0x00, 0x00, trackEvents.length,
+    ...trackEvents,
+  ];
+  const rmidBytes = new Uint8Array([...riffPrefix, ...mthd, ...mtrk]);
+  const parsed = parseSmfMultiTrack(rmidBytes, 'RetroSong.mid', 128);
+  assert.equal(parsed.bpm, 100);
+  assert.equal(parsed.tracks.length, 2, 'Expected Format 0 channels 0 and 9 to split into 2 tracks');
+  assert.equal(parsed.tracks[0].isPercussion, false);
+  assert.equal(parsed.tracks[0].noteCount, 2);
+  assert.equal(parsed.tracks[1].isPercussion, true);
+  assert.equal(parsed.tracks[1].recommendedEngine, 'DrumSynth');
+});
