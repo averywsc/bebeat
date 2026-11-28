@@ -5,8 +5,15 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { applyTruePeakCeiling, encodeWavBuffer } from '../src/audio/offlineRenderer';
 import { parseSoundFont2 } from '../src/audio/dsp/sf2Player';
-import { exportNotesToSmf, importSmfToNotes } from '../src/audio/midiCodec';
+import { exportNotesToSmf, importSmfToNotes, parseSmfMultiTrack } from '../src/audio/midiCodec';
 import { RETRO_VOICE_PRESETS, synthesizeRetroSpeechPcm } from '../src/audio/dsp/retroSpeech';
+import {
+  detectBestKeySignature,
+  detectChordName,
+  engraveSheetMusicSvg,
+  exportNotesToMusicXml,
+} from '../src/audio/sheetMusicEngraver';
+import { EFFECT_CATALOG, INSTRUMENT_CATALOG } from '../src/audio/catalog/plugins';
 
 test('Lossless WAV encoder outputs valid 32f, 24-bit, and 16-bit headers with TPDF/shaped dither & True Peak ceiling', () => {
   const sr = 48000;
@@ -106,4 +113,80 @@ test('Retro Text-to-Speech formant synthesizer generates normalized non-silent P
     }
     assert.ok(maxAbs > 0.5 && maxAbs <= 0.96, `Expected normalized peak for ${voiceId}, got ${maxAbs}`);
   }
+});
+
+test('Multi-track MIDI parser, classical SVG sheet music engraver, MusicXML export & chord detector work cleanly', () => {
+  const sampleNotes = [
+    { id: 'n1', midi: 60, startBeat: 0, duration: 1, velocity: 0.85, pan: 0 },
+    { id: 'n2', midi: 64, startBeat: 0, duration: 1, velocity: 0.8, pan: 0 },
+    { id: 'n3', midi: 67, startBeat: 0, duration: 1, velocity: 0.8, pan: 0 },
+    { id: 'n4', midi: 71, startBeat: 1, duration: 0.5, velocity: 0.82, pan: 0 },
+    { id: 'n5', midi: 72, startBeat: 1.5, duration: 0.5, velocity: 0.85, pan: 0 },
+    { id: 'n6', midi: 48, startBeat: 0, duration: 2, velocity: 0.8, pan: 0 },
+  ];
+
+  const smfBytes = exportNotesToSmf(sampleNotes, 120, 'Piano Piece');
+  const parsed = parseSmfMultiTrack(smfBytes, 'Sonata.mid', 128);
+  assert.equal(parsed.name, 'Sonata');
+  assert.equal(parsed.bpm, 120);
+  assert.equal(parsed.tracks.length, 1);
+  assert.equal(parsed.tracks[0].noteCount, 6);
+
+  const engraved = engraveSheetMusicSvg(sampleNotes, {
+    title: 'Sonata in C',
+    subtitle: 'Piano',
+    composer: 'Bebeat',
+    bpm: 120,
+    timeSig: [4, 4],
+    keySignature: 'C',
+    clefMode: 'grand',
+    paperTheme: 'paper',
+  });
+  assert.ok(engraved.svg.startsWith('<svg'));
+  assert.ok(engraved.svg.includes('Sonata in C'));
+  assert.ok(engraved.totalMeasures >= 4);
+
+  const xml = exportNotesToMusicXml(sampleNotes, {
+    title: 'Sonata in C',
+    bpm: 120,
+    timeSig: [4, 4],
+    keySignature: 'G',
+    clefMode: 'grand',
+    paperTheme: 'paper',
+  });
+  assert.ok(xml.includes('<score-partwise version="3.1">'));
+  assert.ok(xml.includes('<fifths>1</fifths>'));
+
+  assert.equal(detectChordName([60, 64, 67]), 'C');
+  assert.equal(detectChordName([60, 63, 67, 70]), 'Cmin7');
+});
+
+test('Auto key signature detection, chord & dynamics sheet engraving, and full plugin catalog integrity', () => {
+  // G Major melody (includes F# = 66)
+  const gMajNotes = [
+    { id: 'g1', midi: 67, startBeat: 0, duration: 1, velocity: 0.92, pan: 0 },
+    { id: 'g2', midi: 71, startBeat: 0, duration: 1, velocity: 0.9, pan: 0 },
+    { id: 'g3', midi: 74, startBeat: 0, duration: 1, velocity: 0.88, pan: 0 },
+    { id: 'g4', midi: 66, startBeat: 1, duration: 1, velocity: 0.35, pan: 0 },
+    { id: 'g5', midi: 67, startBeat: 2, duration: 2, velocity: 0.75, pan: 0 },
+  ];
+  assert.equal(detectBestKeySignature(gMajNotes), 'G');
+
+  const engraved = engraveSheetMusicSvg(gMajNotes, {
+    title: 'G Major Etude',
+    bpm: 112,
+    timeSig: [4, 4],
+    keySignature: 'G',
+    clefMode: 'treble',
+    paperTheme: 'paper',
+    showChords: true,
+    showDynamics: true,
+  });
+  assert.ok(engraved.svg.includes('>Gmaj7<') || engraved.svg.includes('>G<'), 'Expected detected chord symbol G/Gmaj7 above measure');
+  assert.ok(engraved.svg.includes('>mf<') || engraved.svg.includes('>f<') || engraved.svg.includes('>ff<'), 'Expected velocity dynamics engraved');
+
+  assert.ok(INSTRUMENT_CATALOG.length >= 30, 'Expected at least 30 built-in generators');
+  assert.ok(EFFECT_CATALOG.length >= 80, 'Expected at least 80 built-in effects');
+  const uniqueFxIds = new Set(EFFECT_CATALOG.map((e) => e.id));
+  assert.equal(uniqueFxIds.size, EFFECT_CATALOG.length, 'Expected unique effect plugin IDs');
 });

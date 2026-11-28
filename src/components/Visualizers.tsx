@@ -32,16 +32,16 @@ export const TelemetryFooterBar: React.FC = () => {
         if (ctx) {
           const w = sc.width;
           const h = sc.height;
-          ctx.fillStyle = '#080C18';
+          ctx.fillStyle = '#141416';
           ctx.fillRect(0, 0, w, h);
-          ctx.strokeStyle = '#1E2A45';
+          ctx.strokeStyle = '#2c2c32';
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(0, h / 2);
           ctx.lineTo(w, h / 2);
           ctx.stroke();
 
-          ctx.strokeStyle = '#FFFFFF';
+          ctx.strokeStyle = '#ececef';
           ctx.lineWidth = 1.4;
           ctx.beginPath();
           const n = t.wave.length;
@@ -62,14 +62,14 @@ export const TelemetryFooterBar: React.FC = () => {
         if (ctx) {
           const w = sp.width;
           const h = sp.height;
-          ctx.fillStyle = '#080C18';
+          ctx.fillStyle = '#141416';
           ctx.fillRect(0, 0, w, h);
           const bins = t.fft.length;
           const bw = w / bins;
           for (let i = 0; i < bins; i++) {
             const v = t.fft[i];
             const bh = v * (h - 2);
-            ctx.fillStyle = v > 0.85 ? '#FFFFFF' : '#60A5FA';
+            ctx.fillStyle = v > 0.85 ? '#ffffff' : '#2f7cf6';
             ctx.fillRect(i * bw, h - bh, Math.max(1, bw - 1), bh);
           }
         }
@@ -82,17 +82,17 @@ export const TelemetryFooterBar: React.FC = () => {
         if (ctx) {
           const w = bc.width;
           const h = bc.height;
-          ctx.fillStyle = '#080C18';
+          ctx.fillStyle = '#141416';
           ctx.fillRect(0, 0, w, h);
 
           const bars = [
-            { label: 'SUB', val: t.bands.sub, col: '#FFFFFF' },
-            { label: 'LOW', val: t.bands.lowMid, col: '#93C5FD' },
-            { label: 'MID', val: t.bands.highMid, col: '#60A5FA' },
-            { label: 'AIR', val: t.bands.air, col: '#38BDF8' },
-            { label: 'KCK', val: t.kickEnv, col: '#E2E8F0' },
-            { label: 'ONS', val: t.onset, col: '#FBBF24' },
-            { label: 'PHS', val: t.beatPhase, col: '#CBD5E1' },
+            { label: 'SUB', val: t.bands.sub, col: '#ececef' },
+            { label: 'LOW', val: t.bands.lowMid, col: '#60a5fa' },
+            { label: 'MID', val: t.bands.highMid, col: '#2f7cf6' },
+            { label: 'AIR', val: t.bands.air, col: '#38bdf8' },
+            { label: 'KCK', val: t.kickEnv, col: '#ececef' },
+            { label: 'ONS', val: t.onset, col: '#fbbf24' },
+            { label: 'PHS', val: t.beatPhase, col: '#bdbdc6' },
           ];
           const colW = w / bars.length;
           bars.forEach((b, idx) => {
@@ -100,11 +100,11 @@ export const TelemetryFooterBar: React.FC = () => {
             const bw = colW - 6;
             const barMaxH = h - 12;
             const bh = Math.min(1, Math.max(0, b.val)) * barMaxH;
-            ctx.fillStyle = '#141F38';
+            ctx.fillStyle = '#202024';
             ctx.fillRect(x, 2, bw, barMaxH);
             ctx.fillStyle = b.col;
             ctx.fillRect(x, 2 + (barMaxH - bh), bw, bh);
-            ctx.fillStyle = '#94A3B8';
+            ctx.fillStyle = '#82828e';
             ctx.font = '8px "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(b.label, x + bw / 2, h - 1);
@@ -188,8 +188,8 @@ export const TelemetryFooterBar: React.FC = () => {
                     style={{
                       flex: 1,
                       height: 8,
-                      background: '#080C18',
-                      border: '1px solid #24324D',
+                      background: 'var(--bg)',
+                      border: '1px solid var(--border)',
                       borderRadius: 2,
                       overflow: 'hidden',
                     }}

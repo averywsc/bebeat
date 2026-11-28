@@ -104,16 +104,16 @@ export const AudioEditorView: React.FC<AudioEditorViewProps> = ({ project }) => 
     const w = canvas.width;
     const h = canvas.height;
 
-    ctx.fillStyle = '#080C18';
+    ctx.fillStyle = '#141416';
     ctx.fillRect(0, 0, w, h);
 
     // Selection background highlight
     if (normSel) {
       const sx = normSel.a * w;
       const sw = (normSel.b - normSel.a) * w;
-      ctx.fillStyle = 'rgba(96, 165, 250, 0.22)';
+      ctx.fillStyle = 'rgba(47, 124, 246, 0.24)';
       ctx.fillRect(sx, 0, sw, h);
-      ctx.strokeStyle = '#60A5FA';
+      ctx.strokeStyle = '#2f7cf6';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(sx, 0);
@@ -614,7 +614,7 @@ export const AudioEditorView: React.FC<AudioEditorViewProps> = ({ project }) => 
               width: '100%',
               flex: 1,
               minHeight: 165,
-              background: '#080C18',
+              background: 'var(--bg)',
               border: dragOver ? '2px solid #FFFFFF' : '1px solid var(--border)',
               borderRadius: 4,
               cursor: 'text',
@@ -802,7 +802,7 @@ export const AudioEditorView: React.FC<AudioEditorViewProps> = ({ project }) => 
               <div style={{ fontSize: 11, color: 'var(--ink-dim)', marginBottom: 6 }}>Live Chromatic Tuner (Mic / Line-In)</div>
               <div
                 style={{
-                  background: '#080C18',
+                  background: 'var(--bg)',
                   border: '1px solid var(--border)',
                   borderRadius: 4,
                   padding: 12,
@@ -817,7 +817,7 @@ export const AudioEditorView: React.FC<AudioEditorViewProps> = ({ project }) => 
                     ? `${tunerReading.frequency.toFixed(1)} Hz · ${tunerReading.cents >= 0 ? '+' : ''}${tunerReading.cents} ct`
                     : 'Enable Monitor or Record Mic'}
                 </div>
-                <div style={{ height: 6, background: '#11192E', borderRadius: 2, marginTop: 10, position: 'relative' }}>
+                <div style={{ height: 6, background: 'var(--panel-elev)', borderRadius: 2, marginTop: 10, position: 'relative' }}>
                   <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 2, background: '#4ADE80' }} />
                   {tunerReading && (
                     <div
@@ -833,7 +833,7 @@ export const AudioEditorView: React.FC<AudioEditorViewProps> = ({ project }) => 
                     />
                   )}
                 </div>
-                <div style={{ height: 4, background: '#11192E', marginTop: 8 }}>
+                <div style={{ height: 4, background: 'var(--panel-elev)', marginTop: 8 }}>
                   <div style={{ width: `${Math.min(100, Math.round(micLevel * 180))}%`, height: '100%', background: '#60A5FA' }} />
                 </div>
               </div>

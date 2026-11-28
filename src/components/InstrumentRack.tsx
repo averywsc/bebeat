@@ -22,6 +22,80 @@ interface InstrumentRackProps {
 const KEYBOARD_SEMIS = Array.from({ length: 29 }, (_, i) => i);
 const DRUM_VOICES: DrumVoiceName[] = ['bd', 'sn', 'cp', 'hh', 'oh', 'rim', 'lt', 'perc'];
 
+const FilterCurveSvg: React.FC<{ mode: FilterMode; cutoff: number; resonance: number }> = ({ mode, cutoff, resonance }) => {
+  const w = 220;
+  const h = 52;
+  const pts: string[] = [];
+  const logCut = Math.log2(Math.max(40, cutoff));
+  const qBoost = Math.min(1.0, (resonance - 0.5) / 14);
+
+  for (let i = 0; i <= 44; i++) {
+    const t = i / 44;
+    const freq = 30 * Math.pow(650, t);
+    const d = Math.log2(freq) - logCut;
+    let mag = 0.72;
+    if (mode === 'lowpass') {
+      mag = 0.72 / (1 + Math.exp(d * 3.0)) + qBoost * 0.45 * Math.exp(-Math.pow(d * 3.4, 2));
+    } else if (mode === 'highpass') {
+      mag = 0.72 / (1 + Math.exp(-d * 3.0)) + qBoost * 0.45 * Math.exp(-Math.pow(d * 3.4, 2));
+    } else if (mode === 'bandpass') {
+      mag = (0.68 + qBoost * 0.35) * Math.exp(-Math.pow(d * (1.8 + qBoost * 2.2), 2));
+    } else {
+      mag = 0.72 * (1 - 0.85 * Math.exp(-Math.pow(d * (2.2 + qBoost * 2.5), 2)));
+    }
+    const clamped = Math.max(0.03, Math.min(0.96, mag));
+    pts.push(`${(t * w).toFixed(1)},${(h - clamped * (h - 6) - 2).toFixed(1)}`);
+  }
+  const area = `0,${h} ${pts.join(' ')} ${w},${h}`;
+
+  return (
+    <svg
+      width="100%"
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      style={{ display: 'block', background: '#141416', border: '1px solid var(--border)', borderRadius: 4, marginBottom: 8 }}
+    >
+      <polygon points={area} fill="rgba(47, 124, 246, 0.16)" />
+      <polyline points={pts.join(' ')} fill="none" stroke="#2f7cf6" strokeWidth={1.6} />
+    </svg>
+  );
+};
+
+const AdsrCurveSvg: React.FC<{ attack: number; decay: number; sustain: number; release: number }> = ({
+  attack,
+  decay,
+  sustain,
+  release,
+}) => {
+  const w = 220;
+  const h = 52;
+  const pad = 5;
+  const totalT = Math.max(0.3, attack + decay + 0.35 + release);
+  const xA = (attack / totalT) * (w - pad * 2) + pad;
+  const xD = ((attack + decay) / totalT) * (w - pad * 2) + pad;
+  const xS = ((attack + decay + 0.35) / totalT) * (w - pad * 2) + pad;
+  const xR = w - pad;
+  const yBot = h - pad;
+  const yTop = pad + 2;
+  const ySus = yBot - sustain * (yBot - yTop);
+  const pts = `${pad},${yBot} ${xA.toFixed(1)},${yTop} ${xD.toFixed(1)},${ySus.toFixed(1)} ${xS.toFixed(1)},${ySus.toFixed(1)} ${xR},${yBot}`;
+
+  return (
+    <svg
+      width="100%"
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      style={{ display: 'block', background: '#141416', border: '1px solid var(--border)', borderRadius: 4, marginBottom: 8 }}
+    >
+      <polygon points={`${pad},${yBot} ${pts} ${xR},${yBot}`} fill="rgba(47, 124, 246, 0.16)" />
+      <polyline points={pts} fill="none" stroke="#2f7cf6" strokeWidth={1.6} />
+      <circle cx={xA} cy={yTop} r={2.5} fill="#ececef" />
+      <circle cx={xD} cy={ySus} r={2.5} fill="#ececef" />
+      <circle cx={xS} cy={ySus} r={2.5} fill="#ececef" />
+    </svg>
+  );
+};
+
 export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
   const [modLiveVals, setModLiveVals] = useState<Record<string, number>>({});
   const [newModSrc, setNewModSrc] = useState<ModSourceId>('bands.sub');
@@ -112,7 +186,7 @@ export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
   const activeSf2 = sf2List.find((f) => f.id === channel.soundFont.sf2Name) || sf2List[0];
 
   return (
-    <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', background: '#080C18' }}>
+    <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', background: 'var(--bg)' }}>
       {/* Left Channel Selector Rail */}
       <aside className="panel-col" style={{ width: 220, flex: 'none' }}>
         <div className="panel-header">
@@ -305,6 +379,11 @@ export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
 
               <div className="inst-section">
                 <div className="inst-section-title">Resonant Filter &amp; Drive</div>
+                <FilterCurveSvg
+                  mode={channel.subSynth.filterMode}
+                  cutoff={channel.subSynth.cutoff}
+                  resonance={channel.subSynth.resonance}
+                />
                 <div className="param-row">
                   <label>Filter Mode</label>
                   <select
@@ -352,6 +431,12 @@ export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
 
               <div className="inst-section">
                 <div className="inst-section-title">Amp ADSR &amp; Sync LFO</div>
+                <AdsrCurveSvg
+                  attack={channel.subSynth.ampEnv.attack}
+                  decay={channel.subSynth.ampEnv.decay}
+                  sustain={channel.subSynth.ampEnv.sustain}
+                  release={channel.subSynth.ampEnv.release}
+                />
                 {(['attack', 'decay', 'sustain', 'release'] as const).map((k) => (
                   <div key={k} className="param-row">
                     <label>{k.toUpperCase()}</label>
@@ -614,7 +699,7 @@ export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
           <span className="panel-title">Beat-Reactive Mod Matrix</span>
         </div>
 
-        <div style={{ padding: 10, borderBottom: '1px solid #24324D', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ padding: 10, borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', gap: 5 }}>
             <select style={{ flex: 1 }} value={newModSrc} onChange={(e) => setNewModSrc(e.target.value as ModSourceId)}>
               {(Object.keys(MOD_SOURCE_LABELS) as ModSourceId[]).map((src) => (
@@ -691,7 +776,7 @@ export const InstrumentRack: React.FC<InstrumentRackProps> = ({ project }) => {
                 </div>
 
                 {/* Live Mod Activity Meter */}
-                <div style={{ height: 5, background: '#080C18', border: '1px solid #24324D', marginBottom: 6 }}>
+                <div style={{ height: 5, background: 'var(--bg)', border: '1px solid var(--border)', marginBottom: 6 }}>
                   <div style={{ width: `${Math.min(100, Math.round(liveVal * 100))}%`, height: '100%', background: '#60A5FA' }} />
                 </div>
 

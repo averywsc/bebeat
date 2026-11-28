@@ -15,6 +15,8 @@ import type { EditorTool, ProjectState, WorkspaceTab } from './types/daw';
 import { projectStore } from './state/projectStore';
 import { saveProjectToRecents } from './state/recentProjects';
 import { audioEngine } from './audio/engine';
+import { parseSmfMultiTrack, type ParsedMidiFile } from './audio/midiCodec';
+import { liveAudioRecorder } from './audio/audioRecorder';
 import { getSystemCapabilities, triggerBrowserDownload, type SystemCapabilities } from './services/bridge';
 import type { PythonRuntimeMode } from './livecode/pythonRuntime';
 import { TYPING_KEY_TO_SEMITONE } from './livecode/musicTheory';
@@ -34,15 +36,17 @@ import { PerformanceDrummerView } from './components/PerformanceDrummerView';
 import { LiveCodeStudio } from './components/LiveCodeStudio';
 import { ExportModal } from './components/ExportModal';
 import { SettingsModal } from './components/SettingsModal';
+import { CommandPalette } from './components/CommandPalette';
+import { MidiImportModal } from './components/MidiImportModal';
 
 const TABS: Array<{ id: WorkspaceTab; label: string }> = [
   { id: 'channel-rack', label: 'Channel Rack' },
   { id: 'piano-roll', label: 'Piano Roll' },
+  { id: 'score', label: 'Sheet Music' },
   { id: 'playlist', label: 'Playlist' },
   { id: 'mixer', label: 'Mixer' },
   { id: 'instruments', label: 'Instruments' },
-  { id: 'audio-editor', label: 'Audio / Edison' },
-  { id: 'score', label: 'Score' },
+  { id: 'audio-editor', label: 'Audio / TTS' },
   { id: 'performance', label: 'Drummer & Live' },
   { id: 'live-code', label: 'Live Code' },
 ];
@@ -68,12 +72,27 @@ export const App: React.FC = () => {
   const [showExport, setShowExport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showCmdPalette, setShowCmdPalette] = useState(false);
+  const [pendingMidiImport, setPendingMidiImport] = useState<ParsedMidiFile | null>(null);
   const [hintText, setHintText] = useState(
-    'Ready — Press Space to play current section, Shift+Space to Play All, Z-M / Q-P to play piano, Ctrl+S to save.'
+    'Ready — Press Ctrl+K to search any tool/plugin, Space to play current tab, Shift+Space to Play All, or drop any .mid / .mp3 file.'
   );
   const [capabilities, setCapabilities] = useState<SystemCapabilities | null>(null);
   const [pythonMode, setPythonMode] = useState<PythonRuntimeMode>('auto');
   const heldKeysRef = useRef<Map<string, { channelId: string; midi: number }>>(new Map());
+
+  useEffect(() => {
+    getSystemCapabilities().then(setCapabilities).catch(() => {});
+  }, []);
+
+  // Apply selected theme CSS variables dynamically
+  useEffect(() => {
+    const theme = THEME_PRESETS.find((t) => t.id === project.themeId) || THEME_PRESETS[0];
+    const root = document.documentElement;
+    for (const [k, v] of Object.entries(theme.vars)) {
+      root.style.setProperty(k, v);
+    }
+  }, [project.themeId]);
 
   const handleQuickSave = useCallback(() => {
     const saved = saveProjectToRecents(projectStore.getState(), currentRecentId);
@@ -128,6 +147,84 @@ export const App: React.FC = () => {
     input.click();
   }, []);
 
+  const openMidiBytes = useCallback((name: string, bytes: Uint8Array) => {
+    try {
+      const parsed = parseSmfMultiTrack(bytes, name, projectStore.getState().bpm);
+      if (parsed.tracks.length === 0) {
+        setHintText(`MIDI file "${name}" contained no note events.`);
+        return;
+      }
+      setHasLaunchedOnce(true);
+      setShowHome(false);
+      setPendingMidiImport(parsed);
+    } catch (err) {
+      setHintText(`Failed to parse MIDI "${name}": ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, []);
+
+  const handleImportMidiFile = useCallback(async () => {
+    if (window.bebeat?.pickAudioOrSf2) {
+      const picked = await window.bebeat.pickAudioOrSf2();
+      if (picked && /\.(mid|midi)$/i.test(picked.name)) {
+        openMidiBytes(picked.name, picked.bytes);
+      } else if (picked) {
+        // Also allow picking an audio file directly
+        const key = await audioEngine.loadCustomSample(picked.name, picked.bytes);
+        const buf = audioEngine.getKitBuffer(key);
+        if (buf) {
+          const take = liveAudioRecorder.addTakeBuffer(picked.name, buf);
+          audioEngine.registerAudioBuffer(take.id, buf);
+          setHasLaunchedOnce(true);
+          setShowHome(false);
+          setActiveTab('audio-editor');
+          setHintText(`Loaded audio "${picked.name}" into Audio / TTS Editor.`);
+        }
+      }
+      return;
+    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.mid,.midi';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (file) openMidiBytes(file.name, new Uint8Array(await file.arrayBuffer()));
+    };
+    input.click();
+  }, [openMidiBytes]);
+
+  const handleGlobalDrop = async (e: React.DragEvent) => {
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith('.mid') || lower.endsWith('.midi')) {
+      e.preventDefault();
+      openMidiBytes(file.name, new Uint8Array(await file.arrayBuffer()));
+    } else if (lower.endsWith('.bebeat') || lower.endsWith('.json')) {
+      e.preventDefault();
+      try {
+        const parsed = JSON.parse(await file.text()) as ProjectState;
+        if (parsed.channels && parsed.patterns) {
+          projectStore.replaceState(parsed);
+          setHasLaunchedOnce(true);
+          setShowHome(false);
+          setHintText(`Opened dropped project "${parsed.name}".`);
+        }
+      } catch {}
+    } else if (/\.(mp3|wav|flac|ogg|m4a|aac)$/.test(lower)) {
+      e.preventDefault();
+      const key = await audioEngine.loadCustomSample(file.name, new Uint8Array(await file.arrayBuffer()));
+      const buf = audioEngine.getKitBuffer(key);
+      if (buf) {
+        const take = liveAudioRecorder.addTakeBuffer(file.name, buf);
+        audioEngine.registerAudioBuffer(take.id, buf);
+        setHasLaunchedOnce(true);
+        setShowHome(false);
+        setActiveTab('audio-editor');
+        setHintText(`Loaded "${file.name}" into Audio / TTS Editor.`);
+      }
+    }
+  };
+
   const handleLaunchProject = useCallback((state: ProjectState, recordId?: string, initialTab?: WorkspaceTab) => {
     audioEngine.stop(true);
     projectStore.replaceState(state);
@@ -145,19 +242,6 @@ export const App: React.FC = () => {
     setCurrentRecentId(saved.id);
     setShowHome(true);
   }, [currentRecentId]);
-
-  useEffect(() => {
-    getSystemCapabilities().then(setCapabilities).catch(() => {});
-  }, []);
-
-  // Apply selected theme CSS variables dynamically
-  useEffect(() => {
-    const theme = THEME_PRESETS.find((t) => t.id === project.themeId) || THEME_PRESETS[0];
-    const root = document.documentElement;
-    for (const [k, v] of Object.entries(theme.vars)) {
-      root.style.setProperty(k, v);
-    }
-  }, [project.themeId]);
 
   /** Play ONLY the part you are currently editing */
   const playCurrentPart = useCallback(async () => {
@@ -182,24 +266,28 @@ export const App: React.FC = () => {
     }
   }, [activeTab]);
 
-  /** Play ALL parts together */
   const playAllParts = useCallback(async () => {
     await audioEngine.playAll();
     setHintText('Playing all channels, arrangement, and active live code together.');
   }, []);
 
-  // Global DAW shortcuts + Computer Keyboard Typing-to-Piano
+  // Global DAW shortcuts + Command Palette (Ctrl+K) + Computer Keyboard Typing-to-Piano
   useEffect(() => {
     if (showHome) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      const inEditor = tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT';
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowCmdPalette((v) => !v);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleQuickSave();
         return;
       }
-      if (inEditor) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      const inEditor = tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT';
+      if (inEditor || showCmdPalette) return;
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -266,22 +354,29 @@ export const App: React.FC = () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [showHome, playCurrentPart, playAllParts, handleQuickSave]);
+  }, [showHome, showCmdPalette, playCurrentPart, playAllParts, handleQuickSave]);
 
   if (showHome) {
     return (
-      <HomeScreen
-        hasActiveSession={hasLaunchedOnce}
-        currentProjectName={project.name}
-        onResumeCurrent={() => setShowHome(false)}
-        onLaunchProject={handleLaunchProject}
-        onOpenProjectFile={handleOpenProjectFile}
-      />
+      <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => void handleGlobalDrop(e)}>
+        <HomeScreen
+          hasActiveSession={hasLaunchedOnce}
+          currentProjectName={project.name}
+          onResumeCurrent={() => setShowHome(false)}
+          onLaunchProject={handleLaunchProject}
+          onOpenProjectFile={handleOpenProjectFile}
+          onImportMidiFile={handleImportMidiFile}
+        />
+      </div>
     );
   }
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => void handleGlobalDrop(e)}
+    >
       <TopBar
         project={project}
         activeTab={activeTab}
@@ -291,12 +386,14 @@ export const App: React.FC = () => {
         onQuickSave={handleQuickSave}
         onSaveProjectFile={() => void handleSaveProjectFile()}
         onOpenProjectFile={() => void handleOpenProjectFile()}
+        onImportMidi={() => void handleImportMidiFile()}
+        onOpenCommandPalette={() => setShowCmdPalette(true)}
         onOpenExport={() => setShowExport(true)}
         onOpenSettings={() => setShowSettings(true)}
         onOpenHelp={() => setShowHelp(true)}
       />
 
-      {/* Workspace Tabs + 9 FL Editing Tools */}
+      {/* Clean Spacious Workspace Navigation Tabs */}
       <nav className="nav-tabs" style={{ overflowX: 'auto' }}>
         {TABS.map((t) => (
           <button
@@ -310,31 +407,32 @@ export const App: React.FC = () => {
             {t.label}
           </button>
         ))}
-
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3, paddingLeft: 10 }}>
-          {TOOLS.map((tool) => {
-            const Icon = tool.icon;
-            const active = project.activeTool === tool.id;
-            return (
-              <button
-                key={tool.id}
-                className={active ? 'active sm icon-only' : 'sm icon-only'}
-                onClick={() => {
-                  projectStore.update((s) => { s.activeTool = tool.id; }, false);
-                  setHintText(`Active Tool: ${tool.label} Tool`);
-                }}
-                onMouseEnter={() => setHintText(`${tool.label} Tool`)}
-                title={`${tool.label} Tool`}
-              >
-                <Icon size={12} />
-              </button>
-            );
-          })}
-        </div>
       </nav>
 
       <main className="workspace-body">
         <div className="workspace-pane">
+          {/* Totone Studio Pro Left Vertical Tool Dock */}
+          <nav className="tool-dock" aria-label="Editing Tools">
+            {TOOLS.map((tool) => {
+              const Icon = tool.icon;
+              const active = project.activeTool === tool.id;
+              return (
+                <button
+                  key={tool.id}
+                  className={`tool-dock-btn ${active ? 'active' : ''}`}
+                  onClick={() => {
+                    projectStore.update((s) => { s.activeTool = tool.id; }, false);
+                    setHintText(`Active Tool: ${tool.label} Tool`);
+                  }}
+                  onMouseEnter={() => setHintText(`${tool.label} Tool`)}
+                  title={`${tool.label} Tool`}
+                >
+                  <Icon size={14} />
+                </button>
+              );
+            })}
+          </nav>
+
           {project.browserOpen && (
             <BrowserSidebar
               project={project}
@@ -357,12 +455,16 @@ export const App: React.FC = () => {
             />
           )}
 
-          {activeTab === 'piano-roll' && <PianoRoll project={project} />}
+          {activeTab === 'piano-roll' && (
+            <PianoRoll project={project} onRequestMidiUpload={() => void handleImportMidiFile()} />
+          )}
+          {activeTab === 'score' && (
+            <ScoreEditorView project={project} onRequestMidiUpload={() => void handleImportMidiFile()} />
+          )}
           {activeTab === 'playlist' && <PlaylistView project={project} />}
           {activeTab === 'mixer' && <MixerView project={project} />}
           {activeTab === 'instruments' && <InstrumentRack project={project} />}
           {activeTab === 'audio-editor' && <AudioEditorView project={project} />}
-          {activeTab === 'score' && <ScoreEditorView project={project} />}
           {activeTab === 'performance' && <PerformanceDrummerView project={project} />}
           {activeTab === 'live-code' && (
             <LiveCodeStudio project={project} pythonMode={pythonMode} />
@@ -384,12 +486,36 @@ export const App: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'space-between',
           fontSize: 11,
-          color: 'var(--ink-dim)',
+          color: 'var(--ink-mute)',
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hintText}</span>
-        <span style={{ color: 'var(--ink-mute)' }}>Tool: {project.activeTool.toUpperCase()}</span>
+        <span>Tool: {project.activeTool}</span>
       </div>
+
+      {showCmdPalette && (
+        <CommandPalette
+          project={project}
+          onClose={() => setShowCmdPalette(false)}
+          onNavigateTab={(t) => setActiveTab(t)}
+          onImportMidi={() => void handleImportMidiFile()}
+          onOpenExport={() => setShowExport(true)}
+          onOpenSettings={() => setShowSettings(true)}
+          onHint={setHintText}
+        />
+      )}
+
+      {pendingMidiImport && (
+        <MidiImportModal
+          parsed={pendingMidiImport}
+          project={project}
+          onClose={() => setPendingMidiImport(null)}
+          onImported={(tab, summary) => {
+            setActiveTab(tab);
+            setHintText(summary);
+          }}
+        />
+      )}
 
       {showExport && (
         <ExportModal
@@ -420,25 +546,16 @@ export const App: React.FC = () => {
             </div>
             <div className="modal-body" style={{ fontSize: 12 }}>
               <div className="inst-section">
-                <div className="inst-section-title">Transport &amp; Recording</div>
-                <div><strong>Space</strong> — Play / Pause current section (Piano Roll solos active instrument)</div>
-                <div><strong>Shift + Space</strong> — Play All (all channels, arrangement &amp; live code)</div>
-                <div><strong>Rec</strong> — Arm real-time MIDI / PC keyboard recording into Piano Roll</div>
-                <div><strong>Step Entry</strong> — Stamp notes step-by-step from your keyboard while stopped</div>
-                <div><strong>Auto Rec</strong> — Record X-Y Controller &amp; knob sweeps into Automation Lanes</div>
+                <div className="inst-section-title">Search, MIDI &amp; Sheet Music</div>
+                <div><strong>Ctrl + K</strong> — Command Palette (search any tool, 31 generators, 83 effects, or loop starter)</div>
+                <div><strong>Drag &amp; Drop .mid</strong> — Smart multi-track MIDI importer into Piano Roll, Playlist &amp; Printable Sheet Music</div>
+                <div><strong>Sheet Music Tab</strong> — Download 300-DPI PNG, SVG, Print/PDF, or MusicXML sheet music</div>
               </div>
               <div className="inst-section">
-                <div className="inst-section-title">Musical Typing (PC Keyboard Piano)</div>
-                <div><strong>Lower Octave</strong>: Z S X D C V G B H N J M ,</div>
-                <div><strong>Upper Octave</strong>: Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P</div>
-                <div><strong>[ / ]</strong> — Shift Typing Keyboard Octave down / up</div>
-              </div>
-              <div className="inst-section">
-                <div className="inst-section-title">Editing &amp; Studio Tools</div>
-                <div><strong>Ctrl+Z / Ctrl+Y</strong> — Undo / Redo</div>
-                <div><strong>Ctrl+D</strong> — Duplicate selected Playlist clip</div>
-                <div><strong>Ctrl+Enter</strong> — Quantized live code hot-reload in JS / Python Studio</div>
-                <div><strong>Browser Sidebar</strong> — Browse all 31 Generators, 76 Effect Plugins, Loop Starters &amp; 24-bit Kits</div>
+                <div className="inst-section-title">Transport &amp; Musical Typing</div>
+                <div><strong>Space</strong> — Play / Pause active tab only · <strong>Shift + Space</strong> — Play All</div>
+                <div><strong>Z-M / Q-P</strong> — Play piano on PC keyboard · <strong>[ / ]</strong> — Shift octave</div>
+                <div><strong>Rec</strong> — Live record notes into Piano Roll · <strong>Ctrl + S</strong> — Save to Recent Projects</div>
               </div>
             </div>
             <div className="modal-footer">

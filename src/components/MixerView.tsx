@@ -67,6 +67,51 @@ function volToDb(v: number): string {
   return `${db >= 0 ? '+' : ''}${db.toFixed(1)}`;
 }
 
+const EqCurveSvg: React.FC<{ params: Record<string, number>; enabled: boolean }> = ({ params, enabled }) => {
+  const low = params.lowGain ?? 0;
+  const lowMid = params.lowMidGain ?? 0;
+  const highMid = params.highMidGain ?? 0;
+  const high = params.highGain ?? 0;
+  const w = 236;
+  const h = 54;
+  const midY = h / 2;
+
+  // Approximate combined 4-band response across 40 log-spaced points (20Hz..20kHz)
+  const pts: string[] = [];
+  for (let i = 0; i <= 40; i++) {
+    const t = i / 40;
+    const freq = 20 * Math.pow(1000, t);
+    const logF = Math.log2(freq);
+    const gLow = low / (1 + Math.exp((logF - Math.log2(110)) * 2.2));
+    const gLm = lowMid * Math.exp(-Math.pow((logF - Math.log2(420)) / 1.15, 2));
+    const gHm = highMid * Math.exp(-Math.pow((logF - Math.log2(2400)) / 1.15, 2));
+    const gHi = high / (1 + Math.exp(-(logF - Math.log2(7500)) * 2.2));
+    const totalDb = Math.max(-14, Math.min(14, gLow + gLm + gHm + gHi));
+    const x = (t * w).toFixed(1);
+    const y = (midY - (totalDb / 14) * (h * 0.42)).toFixed(1);
+    pts.push(`${x},${y}`);
+  }
+  const stroke = enabled ? '#2f7cf6' : '#585864';
+  const fill = enabled ? 'rgba(47, 124, 246, 0.18)' : 'rgba(130, 130, 142, 0.08)';
+  const areaPts = `0,${midY} ${pts.join(' ')} ${w},${midY}`;
+
+  return (
+    <svg
+      width="100%"
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      style={{ display: 'block', background: '#141416', border: '1px solid var(--border)', borderRadius: 4, marginBottom: 8 }}
+    >
+      <line x1={0} y1={midY} x2={w} y2={midY} stroke="#2c2c32" strokeWidth={1} strokeDasharray="3 3" />
+      {[0.22, 0.44, 0.66, 0.84].map((xFrac, idx) => (
+        <line key={idx} x1={w * xFrac} y1={0} x2={w * xFrac} y2={h} stroke="#202024" strokeWidth={1} />
+      ))}
+      <polygon points={areaPts} fill={fill} />
+      <polyline points={pts.join(' ')} fill="none" stroke={stroke} strokeWidth={1.6} />
+    </svg>
+  );
+};
+
 export const MixerView: React.FC<MixerViewProps> = ({ project }) => {
   const [peaks, setPeaks] = useState<Record<string, number>>({});
   const [newPluginId, setNewPluginId] = useState<string>(EFFECT_CATALOG[0].id);
@@ -243,7 +288,7 @@ export const MixerView: React.FC<MixerViewProps> = ({ project }) => {
 
                 {/* Send A / Send B knobs on insert tracks */}
                 {t.kind === 'insert' && (
-                  <div style={{ borderTop: '1px solid #24324D', paddingTop: 5 }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 5 }} onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, color: '#94A3B8' }}>
                       <span>Verb A</span>
                       <span className="mono">{Math.round(t.sendA * 100)}%</span>
@@ -280,6 +325,25 @@ export const MixerView: React.FC<MixerViewProps> = ({ project }) => {
                         }, false);
                       }}
                     />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, color: '#2f7cf6', marginTop: 2 }}>
+                      <span>SC Duck</span>
+                      <span className="mono">{Math.round((t.sidechainDuck ?? 0) * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.02}
+                      value={t.sidechainDuck ?? 0}
+                      title="Kick Sidechain Ducking Depth (pumps volume down on every kick transient)"
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        projectStore.update((s) => {
+                          const m = s.mixerTracks.find((x) => x.id === t.id);
+                          if (m) m.sidechainDuck = v;
+                        }, false);
+                      }}
+                    />
                   </div>
                 )}
               </div>
@@ -294,7 +358,44 @@ export const MixerView: React.FC<MixerViewProps> = ({ project }) => {
           <div className="panel-header">
             <span className="panel-title">FX Rack — {selectedTrack.name}</span>
           </div>
-          <div style={{ padding: '8px 10px', borderBottom: '1px solid #24324D', display: 'flex', gap: 6 }}>
+          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {(
+              [
+                { label: 'Master Glue', ids: ['parametric_eq_2', 'maximus', 'soft_clipper'] },
+                { label: 'Punch Drums', ids: ['transient_processor', 'blood_overdrive', 'compressor'] },
+                { label: 'Lush Space', ids: ['vintage_chorus', 'delay_3', 'luxeverb'] },
+                { label: 'Tight Bass', ids: ['bass_boost', 'compressor', 'soft_clipper'] },
+              ] as const
+            ).map((chain) => (
+              <button
+                key={chain.label}
+                className="sm"
+                style={{ fontSize: 10, padding: '2px 6px' }}
+                onClick={() => {
+                  projectStore.update((s) => {
+                    const m = s.mixerTracks.find((x) => x.id === selectedTrack.id);
+                    if (!m) return;
+                    m.fx = chain.ids.map((pid) => {
+                      const pl = EFFECT_CATALOG.find((e) => e.id === pid) || EFFECT_CATALOG[0];
+                      return {
+                        id: uid('fx'),
+                        type: pl.dspEngine,
+                        pluginId: pl.id,
+                        pluginName: pl.name,
+                        enabled: true,
+                        params: { ...pl.defaultParams },
+                      };
+                    });
+                  });
+                }}
+                title={`Load ${chain.label} multi-FX chain onto ${selectedTrack.name}`}
+              >
+                {chain.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
             <select
               style={{ flex: 1 }}
               value={newPluginId}
@@ -373,6 +474,8 @@ export const MixerView: React.FC<MixerViewProps> = ({ project }) => {
                       </button>
                     </div>
                   </div>
+
+                  {slot.type === 'eq4' && <EqCurveSvg params={slot.params} enabled={slot.enabled} />}
 
                   {FX_PARAM_META[slot.type].map((meta) => {
                     const val = slot.params[meta.key] ?? meta.min;

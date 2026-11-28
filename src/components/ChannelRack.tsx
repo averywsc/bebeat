@@ -246,7 +246,7 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
       </div>
 
       {/* Quick Beat & Euclidean Pattern Generator Bar for Selected Channel */}
-      <div className="panel-header" style={{ height: 32, background: '#0B1020', gap: 5, overflowX: 'auto' }}>
+      <div className="panel-header" style={{ height: 32, background: 'var(--bg-alt)', gap: 5, overflowX: 'auto' }}>
         <span style={{ fontSize: 11, color: '#94A3B8' }}>
           Quick Fill ({selectedChannel?.name || 'Channel'}):
         </span>
@@ -446,7 +446,7 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
 
       {/* FL-Style Interactive Graph Editor */}
       {graphOpen && selectedChannel && (
-        <div style={{ flex: 'none', background: '#0B1020', borderTop: '1px solid #24324D', padding: '8px 12px' }}>
+        <div style={{ flex: 'none', background: 'var(--bg-alt)', borderTop: '1px solid var(--border)', padding: '8px 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <span className="panel-title" style={{ fontSize: 10.5 }}>
               Graph Editor — {selectedChannel.name}
@@ -498,7 +498,7 @@ export const ChannelRack: React.FC<ChannelRackProps> = ({
                     onMouseDown={applyVal}
                     onMouseMove={applyVal}
                     style={{
-                      background: '#080C18',
+                      background: 'var(--bg)',
                       border: '1px solid #1E2C49',
                       borderRadius: 2,
                       position: 'relative',

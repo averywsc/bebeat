@@ -17,16 +17,17 @@
     />
     <style>
       :root {
-        --bg: #080c18;
-        --panel: #0e1528;
-        --panel-hover: #15203b;
-        --border: #24324d;
-        --border-strong: #2e3f61;
-        --ink: #f4f7ff;
-        --mute: #8d9cc4;
-        --dim: #5e7099;
-        --acc: #ffffff;
-        --acc-ink: #080c18;
+        --bg: #141416;
+        --panel: #202024;
+        --panel-hover: #28282d;
+        --border: #2c2c32;
+        --border-strong: #3b3b44;
+        --ink: #ececef;
+        --mute: #bdbdc6;
+        --dim: #82828e;
+        --acc: #2f7cf6;
+        --acc-h: #256be0;
+        --acc-ink: #ffffff;
         --font-ui: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         color-scheme: dark;
@@ -179,8 +180,8 @@
       }
 
       .btn.primary:hover {
-        background: #e5ebf8;
-        border-color: #e5ebf8;
+        background: var(--acc-h);
+        border-color: var(--acc-h);
       }
 
       .hash-row {
@@ -286,7 +287,7 @@
       <main>
         <h1>Download Bebeat</h1>
         <p class="lead">
-          A desktop music production DAW and live coding studio for pattern sequencing, multi-engine synthesis, and beat-reactive modulation, with a startup home hub for recent projects, templates, and built-in guides, an FL-style channel rack with graph editor, musical typing piano roll with chord and arpeggio generators, grand staff score view, magnetic arrangement playlist, an audio editor for uploading, chopping, and sampling MP3 and WAV tracks alongside classic retro text-to-speech voices, live mic take recording with chromatic tuner, virtual drummer, performance clip launcher, 31 instruments, 83 mixer effects, real-time JavaScript and Python live coding, plus live LUFS metering and lossless stem export.
+          A desktop music production DAW and live coding studio in Totone Studio Pro matte design for pattern sequencing, multi-engine synthesis, and beat-reactive modulation, with a startup home hub for recent projects, templates, and guides, Ctrl+K command search, an FL-style channel rack with graph editor, musical typing piano roll with live chord detection, auto-melody, and multi-track .mid import, classical printable sheet music engraving and PNG/SVG/PDF/MusicXML download, magnetic arrangement playlist, MP3/WAV chopping and classic retro text-to-speech synthesis, live mic take recording with chromatic tuner, virtual drummer, 31 instruments, 83 mixer effects, JavaScript and Python live coding, plus live LUFS metering and lossless stem export.
         </p>
 
         <section class="downloads">
@@ -299,13 +300,13 @@
             <a
               class="btn primary"
               id="installer-btn"
-              href="https://github.com/averywsc/bebeat/releases/latest/download/Bebeat-Setup-1.1.0.exe"
+              href="https://github.com/averywsc/bebeat/releases/latest/download/Bebeat-Setup-1.2.0.exe"
               download
             >
-              Download Bebeat-Setup-1.1.0.exe
+              Download Bebeat-Setup-1.2.0.exe
             </a>
             <div class="hash-row">
-              <span class="hash-val" id="setup-hash">SHA-256 672D766118E172DA5474AEA358961FBC56474023BD18EB043C527B61E7A4D6F8</span>
+              <span class="hash-val" id="setup-hash">SHA-256 26235C72045B4EDB645432936E292D7F7AB26842A4A05F29BE0121439B1E81D4</span>
               <button type="button" class="copy-btn" data-copy="setup-hash">Copy</button>
             </div>
           </div>
@@ -319,20 +320,20 @@
             <a
               class="btn"
               id="portable-btn"
-              href="https://github.com/averywsc/bebeat/releases/latest/download/Bebeat-1.1.0-Portable.exe"
+              href="https://github.com/averywsc/bebeat/releases/latest/download/Bebeat-1.2.0-Portable.exe"
               download
             >
-              Download Bebeat-1.1.0-Portable.exe
+              Download Bebeat-1.2.0-Portable.exe
             </a>
             <div class="hash-row">
-              <span class="hash-val" id="portable-hash">SHA-256 67BD8A8E8FDAE7BEC0ABBD70FB4B9C37DDF0CE35AD8E284AEAFCDF250C072BDD</span>
+              <span class="hash-val" id="portable-hash">SHA-256 A5070F7B9DA35FBA243F54214BB19275D6CB093EBED3564983663A9CC5BE4E94</span>
               <button type="button" class="copy-btn" data-copy="portable-hash">Copy</button>
             </div>
           </div>
         </section>
 
         <p class="meta" id="meta-line">
-          v1.1.0 / Windows 10 and 11 (64-bit) / WASAPI Audio, FFmpeg, 24-bit WAV Kits &amp; SF2 SoundFont bundled
+          v1.2.0 / Windows 10 and 11 (64-bit) / WASAPI Audio, FFmpeg, 24-bit WAV Kits &amp; SF2 SoundFont bundled
         </p>
 
         <section class="details">
@@ -356,7 +357,7 @@
       </main>
 
       <footer>
-        <span id="footer-ver">Bebeat 1.1.0</span>
+        <span id="footer-ver">Bebeat 1.2.0</span>
         <span id="footer-status">Windows x64</span>
       </footer>
     </div>

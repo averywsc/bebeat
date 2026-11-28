@@ -49,7 +49,7 @@ export const PerformanceDrummerView: React.FC<PerformanceDrummerViewProps> = ({ 
         if (ctx) {
           const w = canvas.width;
           const h = canvas.height;
-          ctx.fillStyle = 'rgba(8, 12, 24, 0.28)';
+          ctx.fillStyle = 'rgba(20, 20, 22, 0.28)';
           ctx.fillRect(0, 0, w, h);
 
           const cx = w / 2;
@@ -191,7 +191,7 @@ export const PerformanceDrummerView: React.FC<PerformanceDrummerViewProps> = ({ 
   };
 
   return (
-    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: 10, overflow: 'auto', background: '#080C18' }}>
+    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: 10, overflow: 'auto', background: 'var(--bg)' }}>
       {/* Column 1: Virtual Drummer Editor */}
       <div className="inst-section" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div className="inst-section-title">Drummer Editor (Session Groove AI)</div>
@@ -216,8 +216,8 @@ export const PerformanceDrummerView: React.FC<PerformanceDrummerViewProps> = ({ 
           }}
           style={{
             height: 170,
-            background: '#080C18',
-            border: '1px solid #24324D',
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
             borderRadius: 4,
             position: 'relative',
             cursor: 'crosshair',
@@ -284,8 +284,8 @@ export const PerformanceDrummerView: React.FC<PerformanceDrummerViewProps> = ({ 
           onMouseMove={handleXyDrag}
           style={{
             height: 130,
-            background: '#080C18',
-            border: '1px solid #24324D',
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
             borderRadius: 4,
             position: 'relative',
             cursor: 'crosshair',
@@ -342,8 +342,8 @@ export const PerformanceDrummerView: React.FC<PerformanceDrummerViewProps> = ({ 
             width: '100%',
             flex: 1,
             minHeight: 240,
-            background: '#080C18',
-            border: '1px solid #24324D',
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
             borderRadius: 4,
           }}
         />

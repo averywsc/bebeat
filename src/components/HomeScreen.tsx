@@ -26,6 +26,7 @@ interface HomeScreenProps {
   onResumeCurrent: () => void;
   onLaunchProject: (state: ProjectState, recordId?: string, initialTab?: WorkspaceTab) => void;
   onOpenProjectFile: () => Promise<void>;
+  onImportMidiFile: () => Promise<void>;
 }
 
 const TEMPLATES: Array<{
@@ -101,6 +102,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onResumeCurrent,
   onLaunchProject,
   onOpenProjectFile,
+  onImportMidiFile,
 }) => {
   const [recents, setRecents] = useState<RecentProjectRecord[]>(() => listRecentProjects());
   const [newName, setNewName] = useState('Untitled Studio Session');
@@ -154,6 +156,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => void onImportMidiFile()}>
+            <Music size={13} /> Import .mid / Sheet Music
+          </button>
           <button onClick={() => void onOpenProjectFile()}>
             <FolderOpen size={13} /> Open .bebeat File
           </button>

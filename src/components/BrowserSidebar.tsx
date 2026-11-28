@@ -201,7 +201,7 @@ export const BrowserSidebar: React.FC<BrowserSidebarProps> = ({ project, onHint,
       </div>
 
       {/* Search bar */}
-      <div style={{ padding: '6px 8px', borderBottom: '1px solid #24324D', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
         <Search size={12} color="#64748B" />
         <input
           type="search"
@@ -215,7 +215,7 @@ export const BrowserSidebar: React.FC<BrowserSidebarProps> = ({ project, onHint,
       {/* Plugin Database */}
       {section === 'plugins' && (
         <>
-          <div style={{ padding: '6px 8px', borderBottom: '1px solid #24324D', display: 'flex', gap: 4 }}>
+          <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 4 }}>
             <button
               className={pluginSub === 'instruments' ? 'active sm' : 'sm'}
               style={{ flex: 1 }}
@@ -369,7 +369,7 @@ export const BrowserSidebar: React.FC<BrowserSidebarProps> = ({ project, onHint,
                   alignItems: 'center',
                   gap: 6,
                   padding: '5px 6px',
-                  borderBottom: '1px solid #1C2740',
+                  borderBottom: '1px solid var(--border)',
                 }}
               >
                 <button
@@ -437,9 +437,9 @@ export const BrowserSidebar: React.FC<BrowserSidebarProps> = ({ project, onHint,
             style={{
               width: '100%',
               height: 120,
-              background: '#080C18',
+              background: 'var(--bg)',
               color: '#F8FAFC',
-              border: '1px solid #24324D',
+              border: '1px solid var(--border)',
               borderRadius: 4,
               padding: 7,
               fontFamily: 'var(--font-mono)',

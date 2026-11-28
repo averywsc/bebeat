@@ -379,7 +379,7 @@ export function createInitialProject(): ProjectState {
   ];
 
   return {
-    version: '1.1.0',
+    version: '1.3.0',
     name: 'Untitled Studio Session',
     bpm: 128,
     swing: 0.08,
@@ -398,7 +398,7 @@ export function createInitialProject(): ProjectState {
     typingOctave: 3,
     masterPitchSemi: 0,
     activeTool: 'draw',
-    themeId: 'totone-navy',
+    themeId: 'totone-pro',
     browserOpen: true,
     notebookText: 'Session Notes:\n- 128 BPM C minor studio groove\n- Use Z..M / Q..P to play or record live\n- Insert any of 76 FX plugins from the Browser or Mixer',
     playlistTracks: [

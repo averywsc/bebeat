@@ -57,6 +57,168 @@ export function buildFxSlotNode(ctx: BaseAudioContext, slot: FxSlot, bpm: number
   }
 
   const p = slot.params;
+  const pid = slot.pluginId || '';
+
+  // Dedicated authentic DSP topologies for specialized named studio plugins
+  if (pid === 'phase_inverter') {
+    const inv = ctx.createGain();
+    inv.gain.value = -1;
+    input.connect(inv).connect(output);
+    nodes.push(inv);
+    return { input, output, disconnect: () => nodes.forEach((n) => { try { n.disconnect(); } catch {} }) };
+  }
+
+  if (pid === 'mute_2') {
+    const muteGain = ctx.createGain();
+    muteGain.gain.value = 0;
+    input.connect(muteGain).connect(output);
+    nodes.push(muteGain);
+    return { input, output, disconnect: () => nodes.forEach((n) => { try { n.disconnect(); } catch {} }) };
+  }
+
+  if (pid === 'panomatic') {
+    const pan = ctx.createStereoPanner();
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = Math.max(0.1, p.rate ?? (bpm / 60) * 0.5);
+    const depth = ctx.createGain();
+    depth.gain.value = Math.min(1, p.depth ?? 0.75);
+    lfo.connect(depth).connect(pan.pan);
+    lfo.start();
+    input.connect(pan).connect(output);
+    nodes.push(pan, lfo, depth);
+    return {
+      input,
+      output,
+      disconnect: () => {
+        try { lfo.stop(); } catch {}
+        nodes.forEach((n) => { try { n.disconnect(); } catch {} });
+      },
+    };
+  }
+
+  if (pid === 'gross_beat') {
+    // BPM-synced rhythmic sidechain gate / stutter modulation
+    const mix = Math.max(0, Math.min(1, p.mix ?? 0.6));
+    const gate = ctx.createGain();
+    gate.gain.value = 1 - mix * 0.45;
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sawtooth';
+    const div = Math.max(0.125, p.division ?? 0.25);
+    lfo.frequency.value = (bpm / 60) / (div * 2);
+    const depth = ctx.createGain();
+    depth.gain.value = mix * 0.45;
+    lfo.connect(depth).connect(gate.gain);
+    lfo.start();
+    input.connect(gate).connect(output);
+    nodes.push(gate, lfo, depth);
+    return {
+      input,
+      output,
+      disconnect: () => {
+        try { lfo.stop(); } catch {}
+        nodes.forEach((n) => { try { n.disconnect(); } catch {} });
+      },
+    };
+  }
+
+  if (pid === 'phaser' || pid === 'vintage_phaser') {
+    // True 4-stage cascaded all-pass filter bank swept by LFO
+    const mix = Math.max(0, Math.min(1, p.mix ?? 0.5));
+    const dry = ctx.createGain();
+    const wet = ctx.createGain();
+    dry.gain.value = 1 - mix * 0.4;
+    wet.gain.value = mix;
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = p.rate ?? 0.4;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 900 * (p.depth ?? 0.75);
+    lfo.connect(lfoGain);
+
+    let chain: AudioNode = input;
+    const freqs = [320, 680, 1400, 2800];
+    for (const f0 of freqs) {
+      const ap = ctx.createBiquadFilter();
+      ap.type = 'allpass';
+      ap.frequency.value = f0;
+      ap.Q.value = 2.4;
+      lfoGain.connect(ap.frequency);
+      chain.connect(ap);
+      chain = ap;
+      nodes.push(ap);
+    }
+    lfo.start();
+    input.connect(dry).connect(output);
+    chain.connect(wet).connect(output);
+    nodes.push(dry, wet, lfo, lfoGain);
+    return {
+      input,
+      output,
+      disconnect: () => {
+        try { lfo.stop(); } catch {}
+        nodes.forEach((n) => { try { n.disconnect(); } catch {} });
+      },
+    };
+  }
+
+  if (pid === 'flanger' || pid === 'flangus') {
+    // Feedback comb flanger (1ms..10ms delay modulated by LFO)
+    const mix = Math.max(0, Math.min(1, p.mix ?? 0.5));
+    const dry = ctx.createGain();
+    const wet = ctx.createGain();
+    dry.gain.value = 1 - mix * 0.35;
+    wet.gain.value = mix;
+    const delay = ctx.createDelay(0.05);
+    delay.delayTime.value = 0.005;
+    const fb = ctx.createGain();
+    fb.gain.value = 0.55;
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = p.rate ?? 0.35;
+    const lfoDepth = ctx.createGain();
+    lfoDepth.gain.value = 0.0038 * (p.depth ?? 0.85);
+    lfo.connect(lfoDepth).connect(delay.delayTime);
+    lfo.start();
+    input.connect(dry).connect(output);
+    input.connect(delay).connect(wet).connect(output);
+    delay.connect(fb).connect(delay);
+    nodes.push(dry, wet, delay, fb, lfo, lfoDepth);
+    return {
+      input,
+      output,
+      disconnect: () => {
+        try { lfo.stop(); } catch {}
+        nodes.forEach((n) => { try { n.disconnect(); } catch {} });
+      },
+    };
+  }
+
+  if (pid === 'soundgoodizer' || pid === 'maximus') {
+    // Parallel psychoacoustic warm saturation + air shelf + dynamics maximizer
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = p.threshold ?? -16;
+    comp.ratio.value = Math.max(2, p.ratio ?? 6);
+    comp.attack.value = 0.004;
+    comp.release.value = 0.09;
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = makeDriveCurve(0.24);
+    shaper.oversample = '2x';
+    const lowWarm = ctx.createBiquadFilter();
+    lowWarm.type = 'lowshelf';
+    lowWarm.frequency.value = 95;
+    lowWarm.gain.value = 2.4;
+    const airShelf = ctx.createBiquadFilter();
+    airShelf.type = 'highshelf';
+    airShelf.frequency.value = 7500;
+    airShelf.gain.value = 2.6;
+    const makeup = ctx.createGain();
+    makeup.gain.value = Math.pow(10, Math.min(6, (p.makeup ?? 3.5) * 0.5) / 20);
+    input.connect(lowWarm).connect(airShelf).connect(shaper).connect(comp).connect(makeup).connect(output);
+    nodes.push(lowWarm, airShelf, shaper, comp, makeup);
+    return { input, output, disconnect: () => nodes.forEach((n) => { try { n.disconnect(); } catch {} }) };
+  }
+
   switch (slot.type) {
     case 'eq4': {
       const low = ctx.createBiquadFilter();
@@ -206,6 +368,7 @@ export function buildFxSlotNode(ctx: BaseAudioContext, slot: FxSlot, bpm: number
 export class MixerTrackNode {
   readonly id: string;
   readonly input: GainNode;
+  readonly duckGain: GainNode;
   readonly fader: GainNode;
   readonly panner: StereoPannerNode;
   readonly sendAGain: GainNode;
@@ -219,6 +382,7 @@ export class MixerTrackNode {
   constructor(private ctx: BaseAudioContext, track: MixerTrack, bpm: number) {
     this.id = track.id;
     this.input = ctx.createGain();
+    this.duckGain = ctx.createGain();
     this.fader = ctx.createGain();
     this.panner = ctx.createStereoPanner();
     this.sendAGain = ctx.createGain();
@@ -232,6 +396,7 @@ export class MixerTrackNode {
       this.analyser = null;
     }
 
+    this.duckGain.connect(this.fader);
     this.fader.connect(this.panner);
     this.panner.connect(this.output);
     this.panner.connect(this.sendAGain);
@@ -241,6 +406,11 @@ export class MixerTrackNode {
     }
 
     this.applyState(track, bpm, false);
+  }
+
+  applySidechainDuck(kickEnv: number, depth: number): void {
+    const target = Math.max(0.08, 1 - kickEnv * Math.max(0, Math.min(0.95, depth)));
+    this.duckGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.008);
   }
 
   applyState(track: MixerTrack, bpm: number, anySoloInsert: boolean): void {
@@ -276,7 +446,7 @@ export class MixerTrackNode {
       cursor = fxNode.output;
       this.fxNodes.push(fxNode);
     }
-    cursor.connect(this.fader);
+    cursor.connect(this.duckGain);
   }
 
   readPeak(): number {

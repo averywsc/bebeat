@@ -8,6 +8,8 @@ import {
   Code2,
   Plus,
   Zap,
+  Copy,
+  RefreshCw,
 } from 'lucide-react';
 import type { LiveCodeLang, ProjectState } from '../types/daw';
 import { projectStore, uid } from '../state/projectStore';
@@ -32,8 +34,10 @@ export const LiveCodeStudio: React.FC<LiveCodeStudioProps> = ({ project, pythonM
   const [playStep16, setPlayStep16] = useState(-1);
   const [liveBands, setLiveBands] = useState({ sub: 0, low: 0, mid: 0, highs: 0, kick: 0, phase: 0 });
   const [bakingWav, setBakingWav] = useState(false);
+  const [autoRun, setAutoRun] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const autoRunTimerRef = useRef<number | null>(null);
   const activeBuf =
     project.liveCodeBuffers.find((b) => b.id === project.activeLiveCodeBufferId) || project.liveCodeBuffers[0];
 
@@ -86,7 +90,19 @@ export const LiveCodeStudio: React.FC<LiveCodeStudioProps> = ({ project, pythonM
       const b = s.liveCodeBuffers.find((x) => x.id === activeBuf.id);
       if (b) b.code = nextCode;
     }, false);
+    if (autoRun) {
+      if (autoRunTimerRef.current) window.clearTimeout(autoRunTimerRef.current);
+      autoRunTimerRef.current = window.setTimeout(() => {
+        void evaluateAndHotReload(false);
+      }, 550);
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      if (autoRunTimerRef.current) window.clearTimeout(autoRunTimerRef.current);
+    };
+  }, []);
 
   const evaluateAndHotReload = async (autoStart = true) => {
     await audioEngine.ensureInitialized();
@@ -236,7 +252,7 @@ export const LiveCodeStudio: React.FC<LiveCodeStudioProps> = ({ project, pythonM
           </button>
         </div>
 
-        <div style={{ padding: '6px 8px', borderBottom: '1px solid #24324D', display: 'flex', gap: 4 }}>
+        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 4 }}>
           {(['all', 'javascript', 'python'] as const).map((lf) => (
             <button
               key={lf}
@@ -291,7 +307,7 @@ export const LiveCodeStudio: React.FC<LiveCodeStudioProps> = ({ project, pythonM
       </aside>
 
       {/* Center Code Editor + Toolbar + Console */}
-      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, borderRight: '1px solid #24324D' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, borderRight: '1px solid var(--border)' }}>
         <div className="panel-header" style={{ overflowX: 'auto' }}>
           <div style={{ display: 'flex', gap: 4 }}>
             {project.liveCodeBuffers.map((b) => (
@@ -340,7 +356,14 @@ export const LiveCodeStudio: React.FC<LiveCodeStudioProps> = ({ project, pythonM
           </select>
 
           <button className="primary sm" onClick={() => void evaluateAndHotReload(true)} title="Evaluate & Hot Reload (Ctrl+Enter)">
-            <Play size={11} fill="#080C18" /> Run (Ctrl+Enter)
+            <Play size={11} fill="#FFFFFF" /> Run (Ctrl+Enter)
+          </button>
+          <button
+            className={autoRun ? 'active sm' : 'sm'}
+            onClick={() => setAutoRun((v) => !v)}
+            title="Auto-Run: automatically recompile & quantized hot-reload 550ms after typing"
+          >
+            <RefreshCw size={11} /> Auto-Run
           </button>
           {activeBuf.active && (
             <button className="sm danger-outline" onClick={handleStopLiveCode}>
@@ -350,6 +373,16 @@ export const LiveCodeStudio: React.FC<LiveCodeStudioProps> = ({ project, pythonM
 
           <div className="spacer" />
 
+          <button
+            className="sm icon-only"
+            onClick={() => {
+              void navigator.clipboard?.writeText(activeBuf.code);
+              setConsoleLines((prev) => ['[COPIED] Buffer code copied to clipboard.', ...prev.slice(0, 6)]);
+            }}
+            title="Copy Code to Clipboard"
+          >
+            <Copy size={12} />
+          </button>
           <button className="sm" onClick={() => void handleBakeToPattern()} title="Bake live code into editable Piano Roll / Channel Rack Pattern">
             <Layers size={12} /> Bake Pattern
           </button>
@@ -366,8 +399,8 @@ export const LiveCodeStudio: React.FC<LiveCodeStudioProps> = ({ project, pythonM
           className="mono"
           style={{
             flex: 'none',
-            background: '#0B1020',
-            borderBottom: '1px solid #24324D',
+            background: 'var(--bg-alt)',
+            borderBottom: '1px solid var(--border)',
             padding: '4px 10px',
             display: 'flex',
             gap: 14,
@@ -482,8 +515,8 @@ export const LiveCodeStudio: React.FC<LiveCodeStudioProps> = ({ project, pythonM
                                     ? '#60A5FA'
                                     : '#FFFFFF'
                                   : playStep16 === si
-                                  ? '#2E3F61'
-                                  : '#080C18',
+                                  ? 'var(--border-strong)'
+                                  : 'var(--bg)',
                                 border: '1px solid #1E2C49',
                               }}
                             />
@@ -503,8 +536,8 @@ export const LiveCodeStudio: React.FC<LiveCodeStudioProps> = ({ project, pythonM
                     <div
                       style={{
                         height: 52,
-                        background: '#080C18',
-                        border: '1px solid #24324D',
+                        background: 'var(--bg)',
+                        border: '1px solid var(--border)',
                         position: 'relative',
                         borderRadius: 2,
                         overflow: 'hidden',

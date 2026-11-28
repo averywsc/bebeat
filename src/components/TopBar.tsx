@@ -15,6 +15,8 @@ import {
   PanelLeft,
   HelpCircle,
   Home,
+  Search,
+  Upload,
 } from 'lucide-react';
 import type { ProjectState, WorkspaceTab } from '../types/daw';
 import { projectStore } from '../state/projectStore';
@@ -29,6 +31,8 @@ interface TopBarProps {
   onQuickSave: () => void;
   onSaveProjectFile: () => void;
   onOpenProjectFile: () => void;
+  onImportMidi: () => void;
+  onOpenCommandPalette: () => void;
   onOpenExport: () => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
@@ -55,6 +59,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onQuickSave,
   onSaveProjectFile,
   onOpenProjectFile,
+  onImportMidi,
+  onOpenCommandPalette,
   onOpenExport,
   onOpenSettings,
   onOpenHelp,
@@ -148,7 +154,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           onClick={() => (isPlayingPart ? audioEngine.stop(false) : onPlayCurrentPart())}
           title="Play only the active section / instrument you are editing (Space)"
         >
-          <Play size={12} fill={isPlayingPart ? '#080C18' : 'none'} />
+          <Play size={12} fill={isPlayingPart ? 'var(--bg)' : 'none'} />
           <span>{isPlayingPart ? 'Pause' : PART_PLAY_LABELS[activeTab]}</span>
         </button>
 
@@ -317,9 +323,27 @@ export const TopBar: React.FC<TopBarProps> = ({
 
       <div className="spacer" />
 
+      <button
+        className="cmd-trigger"
+        onClick={onOpenCommandPalette}
+        title="Search tools, plugins, MIDI, sheet music (Ctrl+K)"
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Search size={12} />
+          <span>Search tools, plugins...</span>
+        </span>
+        <span className="cmd-kbd">Ctrl+K</span>
+      </button>
+
+      <div className="spacer" />
+
       <div className="transport-group">
         <button className="icon-only" onClick={onOpenHelp} title="Quick Help & Keyboard Shortcuts">
           <HelpCircle size={13} />
+        </button>
+        <button className="sm" onClick={onImportMidi} title="Upload & Import .mid MIDI Song (Multi-Track + Sheet Music)">
+          <Upload size={12} />
+          <span>.mid</span>
         </button>
         <button onClick={onOpenProjectFile} title="Open .bebeat Project File">
           <FolderOpen size={13} />

@@ -122,3 +122,110 @@ export function importSmfToNotes(bytes: Uint8Array, fallbackBpm = 128): { bpm: n
 
   return { bpm: Math.round(bpm), notes: notes.sort((a, b) => a.startBeat - b.startBeat) };
 }
+
+export interface ParsedMidiTrack {
+  index: number;
+  name: string;
+  instrumentName: string;
+  gmProgram: number;
+  isPercussion: boolean;
+  recommendedEngine: 'SubSynth' | 'FMSynth' | 'SoundFont' | 'DrumSynth';
+  recommendedPreset?: string;
+  noteCount: number;
+  minMidi: number;
+  maxMidi: number;
+  notes: PianoNote[];
+}
+
+export interface ParsedMidiFile {
+  name: string;
+  bpm: number;
+  timeSignature: [number, number];
+  totalBeats: number;
+  tracks: ParsedMidiTrack[];
+}
+
+/**
+ * Full multi-track Standard MIDI File (SMF Type 0/1) parser with tempo, time signature,
+ * GM program classification, and automatic instrument engine mapping.
+ */
+export function parseSmfMultiTrack(bytes: Uint8Array, fileName = 'Imported.mid', fallbackBpm = 128): ParsedMidiFile {
+  const midi = new MidiCtor(bytes);
+  const bpm = Math.round(midi.header.tempos[0]?.bpm || fallbackBpm);
+  const tsRaw = midi.header.timeSignatures[0]?.timeSignature;
+  const timeSignature: [number, number] =
+    Array.isArray(tsRaw) && tsRaw.length >= 2 ? [tsRaw[0], tsRaw[1]] : [4, 4];
+  const secPerBeat = 60 / Math.max(30, bpm);
+
+  let maxBeat = 4;
+  const tracks: ParsedMidiTrack[] = [];
+
+  midi.tracks.forEach((tr, idx) => {
+    if (!tr.notes || tr.notes.length === 0) return;
+    const isPerc = tr.channel === 9 || tr.instrument?.percussion === true;
+    const prog = tr.instrument?.number ?? 0;
+    const instName = tr.instrument?.name || (isPerc ? 'Drums' : 'Piano');
+
+    let recommendedEngine: ParsedMidiTrack['recommendedEngine'] = 'SoundFont';
+    let recommendedPreset: string | undefined;
+    if (isPerc) {
+      recommendedEngine = 'DrumSynth';
+    } else if (prog >= 32 && prog <= 39) {
+      recommendedEngine = 'SubSynth';
+      recommendedPreset = 'Acid 303 Bass';
+    } else if (prog >= 40 && prog <= 55) {
+      recommendedEngine = 'SubSynth';
+      recommendedPreset = 'Lush Juno Pad';
+    } else if (prog >= 80 && prog <= 95) {
+      recommendedEngine = 'FMSynth';
+      recommendedPreset = 'Modular FM Pluck';
+    } else if (prog >= 4 && prog <= 15) {
+      recommendedEngine = 'FMSynth';
+      recommendedPreset = 'Electric Tine Keys';
+    } else {
+      recommendedEngine = 'SoundFont';
+    }
+
+    let minMidi = 127;
+    let maxMidi = 0;
+    const notes: PianoNote[] = tr.notes.map((n) => {
+      if (n.midi < minMidi) minMidi = n.midi;
+      if (n.midi > maxMidi) maxMidi = n.midi;
+      const sb = Math.max(0, Math.round((n.time / secPerBeat) * 16) / 16);
+      const dur = Math.max(0.125, Math.round((n.duration / secPerBeat) * 16) / 16);
+      if (sb + dur > maxBeat) maxBeat = sb + dur;
+      return {
+        id: uid('mid'),
+        midi: n.midi,
+        startBeat: sb,
+        duration: dur,
+        velocity: Math.max(0.1, Math.min(1, n.velocity)),
+        pan: 0,
+      };
+    });
+
+    notes.sort((a, b) => a.startBeat - b.startBeat || a.midi - b.midi);
+
+    tracks.push({
+      index: idx,
+      name: tr.name?.trim() || `${instName} ${tracks.length + 1}`,
+      instrumentName: instName,
+      gmProgram: prog,
+      isPercussion: isPerc,
+      recommendedEngine,
+      recommendedPreset,
+      noteCount: notes.length,
+      minMidi,
+      maxMidi,
+      notes,
+    });
+  });
+
+  return {
+    name: fileName.replace(/\.(mid|midi)$/i, ''),
+    bpm: Math.max(40, Math.min(260, bpm)),
+    timeSignature,
+    totalBeats: Math.max(4, Math.ceil(maxBeat / 4) * 4),
+    tracks,
+  };
+}

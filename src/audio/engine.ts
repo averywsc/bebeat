@@ -753,6 +753,61 @@ export class BebeatAudioEngine {
       const useSongMode =
         scope === 'song-only' || (scope === 'all' && state.playbackMode === 'song');
 
+      // Live Automation Lane & Tempo Track evaluation + Kick Sidechain Ducking
+      if (state.mixerTracks.some((m) => (m.sidechainDuck ?? 0) > 0.01)) {
+        for (const m of state.mixerTracks) {
+          if ((m.sidechainDuck ?? 0) > 0.01) {
+            this.trackNodes.get(m.id)?.applySidechainDuck(frame.kickEnv, m.sidechainDuck!);
+          }
+        }
+      }
+
+      if (useSongMode && state.tempoTrackPoints && state.tempoTrackPoints.length >= 2) {
+        const pts = state.tempoTrackPoints;
+        const b = ev.beat;
+        let segBpm = state.bpm;
+        for (let i = 0; i < pts.length - 1; i++) {
+          if (b >= pts[i].beat && b <= pts[i + 1].beat) {
+            const span = Math.max(0.001, pts[i + 1].beat - pts[i].beat);
+            const tFrac = (b - pts[i].beat) / span;
+            segBpm = Math.round(pts[i].bpm + tFrac * (pts[i + 1].bpm - pts[i].bpm));
+            break;
+          }
+        }
+        if (Math.abs(segBpm - state.bpm) >= 1) {
+          this.clockNode?.port.postMessage({ type: 'params', bpm: segBpm });
+        }
+      }
+
+      // Apply live Automation Lanes to target channel cutoff/gain/pan
+      if (state.automationLanes.length > 0) {
+        for (const lane of state.automationLanes) {
+          if (lane.points.length < 2) continue;
+          const b = ev.beat;
+          const pts = lane.points;
+          let normVal = pts[0].value;
+          if (b >= pts[pts.length - 1].beat) {
+            normVal = pts[pts.length - 1].value;
+          } else {
+            for (let i = 0; i < pts.length - 1; i++) {
+              if (b >= pts[i].beat && b <= pts[i + 1].beat) {
+                const f = (b - pts[i].beat) / Math.max(0.001, pts[i + 1].beat - pts[i].beat);
+                normVal = pts[i].value + f * (pts[i + 1].value - pts[i].value);
+                break;
+              }
+            }
+          }
+          const val = lane.min + normVal * (lane.max - lane.min);
+          if (lane.targetType === 'channel') {
+            const ch = state.channels.find((c) => c.id === lane.targetId);
+            if (ch && lane.param === 'cutoff') {
+              ch.subSynth.cutoff = val;
+              ch.fmSynth.cutoff = val;
+            }
+          }
+        }
+      }
+
       // Schedule active Pattern or Song Playlist clips
       if (runPatternOrSong) {
         if (!useSongMode) {

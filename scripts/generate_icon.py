@@ -21,8 +21,8 @@ def in_rounded_rect(x: float, y: float, x0: float, y0: float, x1: float, y1: flo
 
 
 def make_png(size: int) -> bytes:
-    bg = (8, 12, 24, 255)       # #080C18
-    border = (36, 50, 77, 255)  # #24324D
+    bg = (20, 20, 22, 255)      # #141416 Totone Studio Pro matte
+    border = (47, 124, 246, 255) # #2f7cf6 Totone Studio Pro accent
     white = (255, 255, 255, 255)
 
     rows = []

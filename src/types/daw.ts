@@ -235,6 +235,7 @@ export interface MixerTrack {
   solo: boolean;
   sendA: number;  // 0..1
   sendB: number;  // 0..1
+  sidechainDuck?: number; // 0..1 kick-driven ducking depth
   fx: FxSlot[];
 }
 

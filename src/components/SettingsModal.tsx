@@ -159,7 +159,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '4px 0',
-                    borderBottom: '1px solid #24324D',
+                    borderBottom: '1px solid var(--border)',
                     fontSize: 11,
                   }}
                 >

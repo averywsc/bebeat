@@ -273,13 +273,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, ffmpegAvailab
           </label>
 
           {progressMsg && (
-            <div className="mono" style={{ fontSize: 11, color: '#93C5FD', background: '#080C18', padding: '7px 10px', border: '1px solid #24324D' }}>
+            <div className="mono" style={{ fontSize: 11, color: '#93C5FD', background: 'var(--bg)', padding: '7px 10px', border: '1px solid var(--border)' }}>
               {progressMsg}
             </div>
           )}
 
           {errorMsg && (
-            <div className="mono" style={{ fontSize: 11, color: '#F87171', background: '#080C18', padding: '7px 10px', border: '1px solid #7F1D1D' }}>
+            <div className="mono" style={{ fontSize: 11, color: '#F87171', background: 'var(--bg)', padding: '7px 10px', border: '1px solid #7F1D1D' }}>
               [ERROR] {errorMsg}
             </div>
           )}

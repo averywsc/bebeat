@@ -28,7 +28,7 @@ function createWindow() {
     height: 960,
     minWidth: 1180,
     minHeight: 720,
-    backgroundColor: '#080C18',
+    backgroundColor: '#141416',
     title: 'Bebeat',
     autoHideMenuBar: true,
     webPreferences: {
